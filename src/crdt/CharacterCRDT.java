@@ -61,7 +61,10 @@ public class CharacterCRDT {
 
     public void format(Operation op){
         CharacterNode Node = charMap.get(op.charId);
-        if (Node == null) return;
+        if (Node == null){
+            System.out.println("Node not found");
+            return;
+        }
         Node.bold = op.bold;
         Node.italic = op.italic;
     }
