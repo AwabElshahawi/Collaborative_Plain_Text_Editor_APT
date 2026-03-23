@@ -1,5 +1,11 @@
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
-void main() {
+import crdt.CharacterId;
+import crdt.CharacterNode;
+import crdt.LocalClock;
+import crdt.Operation;
 
+
+public class Main{
+    public static void main(String[] args){
+        
+    }
 }
