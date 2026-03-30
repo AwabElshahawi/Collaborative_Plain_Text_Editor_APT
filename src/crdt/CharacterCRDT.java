@@ -82,6 +82,11 @@ public class CharacterCRDT {
                 break;
         }
     }
+
+    public CharacterNode findNode(CharacterId id){
+        return charMap.get(id);
+    }
+
     public String getText() {
         StringBuilder sb = new StringBuilder();
         collectText(root, sb);
