@@ -37,7 +37,6 @@ public class CharacterCRDT {
             return;
         }
         CharacterNode Node = new CharacterNode(op.charId,op.parentId, op.value, op.bold, op.italic);
-
         charMap.put(Node.id, Node);
         parent.children.add(Node);
         parent.children.sort((a, b) -> {
@@ -61,8 +60,8 @@ public class CharacterCRDT {
 
     public void format(Operation op){
         CharacterNode Node = charMap.get(op.charId);
-        if (Node == null){
-            System.out.println("Node not found");
+        if(Node.deleted) {
+            System.out.println("Deleted character");
             return;
         }
         Node.bold = op.bold;
