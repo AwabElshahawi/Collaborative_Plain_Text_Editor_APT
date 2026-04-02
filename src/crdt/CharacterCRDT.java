@@ -91,5 +91,38 @@ public class CharacterCRDT {
         collectText(root, sb);
         return sb.toString();
     }
+    private void collectVisible(CharacterNode node, List<CharacterNode> result) {
+        if (node != root && !node.deleted) {
+            result.add(node);
+        }
+        for (CharacterNode child : node.children) {
+            collectVisible(child, result);
+        }
+    }
+    public List<CharacterNode> getVisibleCharacters() {
+        List<CharacterNode> result = new ArrayList<>();
+        collectVisible(root, result);
+        return result;
+    }
+    public void tombstoneAll() {
+        for (CharacterNode node : charMap.values()) {
+            if (node != root) {
+                node.deleted = true;
+            }
+        }
+    }
+    public CharacterId insertText(String text, LocalClock clock) {
+        CharacterId parent = getRootId();
+        CharacterId lastInserted = null;
 
+        for (char c : text.toCharArray()) {
+            CharacterId newId = clock.next();
+            Operation op = Operation.insert(newId, parent, c);
+            apply(op);
+            parent = newId;
+            lastInserted = newId;
+        }
+
+        return lastInserted;
+    }
 }

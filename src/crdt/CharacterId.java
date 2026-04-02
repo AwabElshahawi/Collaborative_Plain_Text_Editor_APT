@@ -22,7 +22,7 @@ public class CharacterId implements Comparable<CharacterId>{
     }
     @Override
     public int compareTo(CharacterId other) {
-        int clockComparison = other.clock.compareTo(this.clock);
+        int clockComparison =this.clock.compareTo(other.clock);
         if (clockComparison != 0) {
             return clockComparison;
         }
