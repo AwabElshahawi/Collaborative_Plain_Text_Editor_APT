@@ -17,6 +17,7 @@ public class BlockCRDTTest {
         assertNotNull(crdt.findBlock(id));
     }
 
+
     @Test
     void testDeleteBlock() {
         BlockCRDT crdt = new BlockCRDT();
@@ -62,6 +63,8 @@ public class BlockCRDTTest {
 
         assertEquals("Hello", crdt.getDocumentText());
     }
+
+
 
     @Test
     void testCopyBlock() {
