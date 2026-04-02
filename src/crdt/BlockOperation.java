@@ -3,8 +3,8 @@ package crdt;
 public class BlockOperation {
 
     public enum Type {
-        INSERT,
-        DELETE,
+        INSERT_BLOCK,
+        DELETE_BLOCK ,
         SPLIT,
         MERGE,
         PASTE
@@ -32,11 +32,11 @@ public class BlockOperation {
     // -------- BASIC --------
 
     public static BlockOperation insert(BlockId blockId, BlockId parentId) {
-        return new BlockOperation(Type.INSERT, blockId, parentId);
+        return new BlockOperation(Type.INSERT_BLOCK, blockId, parentId);
     }
 
     public static BlockOperation delete(BlockId blockId) {
-        return new BlockOperation(Type.DELETE, blockId, null);
+        return new BlockOperation(Type.INSERT_BLOCK, blockId, null);
     }
 
     // -------- SPLIT --------
@@ -55,7 +55,7 @@ public class BlockOperation {
         return op;
     }
 
-    // -------- PASTE --------
+
 
     public static BlockOperation paste(BlockId parentId, String text) {
         BlockOperation op = new BlockOperation(Type.PASTE, null, parentId);
@@ -66,10 +66,10 @@ public class BlockOperation {
     @Override
     public String toString() {
         switch (type) {
-            case INSERT:
+            case INSERT_BLOCK:
                 return "INSERT_BLOCK{id=" + blockId + ", parent=" + parentId + "}";
 
-            case DELETE:
+            case DELETE_BLOCK:
                 return "DELETE_BLOCK{id=" + blockId + "}";
 
             case SPLIT:

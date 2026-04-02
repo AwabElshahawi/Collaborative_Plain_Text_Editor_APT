@@ -19,7 +19,7 @@ public class BlockNode {
     }
 
     public static BlockNode createRoot() {
-        return new BlockNode(new BlockId(0, 0), null);
+        return new BlockNode(new BlockId(0, "00:00"), null);
     }
 
     public boolean isRoot() {

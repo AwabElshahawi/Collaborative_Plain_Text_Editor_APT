@@ -73,7 +73,7 @@ public class BlockCRDT {
         List<BlockNode> blocks = getVisibleBlocks();
 
         for (int i = 0; i < blocks.size(); i++) {
-            sb.append(blocks.get(i).content.getText());
+            sb.append(blocks.get(i).CharacterCRDT.getText());
             if (i < blocks.size() - 1) {
                 sb.append("\n");
             }
@@ -86,9 +86,9 @@ public class BlockCRDT {
             System.out.println("Block not found");
             return "";
         }
-        return block.characterCRDT.getText();
+        return block.CharacterCRDT.getText();
     }
-    public BlockId pasteBlock(BlockId parentBlockId, String text, int userId, int blockClockValue) {
+    public BlockId pasteBlock(BlockId parentBlockId, String text, int userId, String blockClockValue) {
         BlockId newBlockId = new BlockId(userId, blockClockValue);
 
         BlockOperation blockOp = BlockOperation.insert(newBlockId, parentBlockId);
@@ -101,11 +101,11 @@ public class BlockCRDT {
         }
 
         LocalClock charClock = new LocalClock(userId);
-        newBlock.characterCRDT.insertText(text, charClock);
+        newBlock.CharacterCRDT.insertText(text, charClock);
 
         return newBlockId;
     }
-    public BlockId splitBlock(BlockId blockId, int splitIndex, int userId, int newBlockClock) {
+    public BlockId splitBlock(BlockId blockId, int splitIndex, int userId, String newBlockClock) {
         BlockNode block = blockMap.get(blockId);
 
         if (block == null || block.deleted) {
@@ -113,7 +113,7 @@ public class BlockCRDT {
             return null;
         }
 
-        String text = block.characterCRDT.getText();
+        String text = block.CharacterCRDT.getText();
 
         if (splitIndex < 0 || splitIndex > text.length()) {
             System.out.println("Invalid split index");
@@ -123,10 +123,10 @@ public class BlockCRDT {
         String left = text.substring(0, splitIndex);
         String right = text.substring(splitIndex);
 
-        block.characterCRDT.tombstoneAll();
+        block.CharacterCRDT.tombstoneAll();
 
         LocalClock leftClock = new LocalClock(userId);
-        block.characterCRDT.insertText(left, leftClock);
+        block.CharacterCRDT.insertText(left, leftClock);
 
         BlockId newBlockId = new BlockId(userId, newBlockClock);
         BlockOperation blockOp = BlockOperation.insert(newBlockId, block.parentId);
@@ -139,7 +139,7 @@ public class BlockCRDT {
         }
 
         LocalClock rightClock = new LocalClock(userId);
-        newBlock.characterCRDT.insertText(right, rightClock);
+        newBlock.CharacterCRDT.insertText(right, rightClock);
 
         return newBlockId;
     }
@@ -152,9 +152,9 @@ public class BlockCRDT {
             return;
         }
 
-        String mergedText = first.characterCRDT.getText() + second.characterCRDT.getText();
+        String mergedText = first.CharacterCRDT.getText() + second.CharacterCRDT.getText();
 
-        first.characterCRDT.tombstoneAll();
+        first.CharacterCRDT.tombstoneAll();
         LocalClock mergeClock = new LocalClock(userId);
         first.CharacterCRDT.insertText(mergedText, mergeClock);
 
