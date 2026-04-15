@@ -4,7 +4,7 @@ public class BlockOperation {
 
     public enum Type {
         INSERT_BLOCK,
-        DELETE_BLOCK ,
+        DELETE_BLOCK,
         SPLIT,
         MERGE,
         PASTE
@@ -13,76 +13,45 @@ public class BlockOperation {
     public final Type type;
     public final BlockId blockId;
     public final BlockId parentId;
+    public final BlockId secondBlockId;
+    public final int splitIndex;
+    public final String text;
+    public final String newBlockClock;
 
-    // For SPLIT
-    public int splitIndex;
-
-    // For MERGE
-    public BlockId secondBlockId;
-
-    // For PASTE
-    public String text;
-
-    private BlockOperation(Type type, BlockId blockId, BlockId parentId) {
+    private BlockOperation(Type type,
+                           BlockId blockId,
+                           BlockId parentId,
+                           BlockId secondBlockId,
+                           int splitIndex,
+                           String text,
+                           String newBlockClock) {
         this.type = type;
         this.blockId = blockId;
         this.parentId = parentId;
+        this.secondBlockId = secondBlockId;
+        this.splitIndex = splitIndex;
+        this.text = text;
+        this.newBlockClock = newBlockClock;
     }
 
-    // -------- BASIC --------
-
     public static BlockOperation insert(BlockId blockId, BlockId parentId) {
-        return new BlockOperation(Type.INSERT_BLOCK, blockId, parentId);
+        return new BlockOperation(Type.INSERT_BLOCK, blockId, parentId, null, -1, null, null);
     }
 
     public static BlockOperation delete(BlockId blockId) {
-        return new BlockOperation(Type.INSERT_BLOCK, blockId, null);
+        return new BlockOperation(Type.DELETE_BLOCK, blockId, null, null, -1, null, null);
     }
 
-    // -------- SPLIT --------
-
-    public static BlockOperation split(BlockId blockId, int splitIndex) {
-        BlockOperation op = new BlockOperation(Type.SPLIT, blockId, null);
-        op.splitIndex = splitIndex;
-        return op;
+    public static BlockOperation split(BlockId blockId, int splitIndex, String newBlockClock) {
+        return new BlockOperation(Type.SPLIT, blockId, null, null, splitIndex, null, newBlockClock);
     }
-
-    // -------- MERGE --------
 
     public static BlockOperation merge(BlockId firstBlockId, BlockId secondBlockId) {
-        BlockOperation op = new BlockOperation(Type.MERGE, firstBlockId, null);
-        op.secondBlockId = secondBlockId;
-        return op;
+        return new BlockOperation(Type.MERGE, firstBlockId, null, secondBlockId, -1, null, null);
     }
 
-
-
-    public static BlockOperation paste(BlockId parentId, String text) {
-        BlockOperation op = new BlockOperation(Type.PASTE, null, parentId);
-        op.text = text;
-        return op;
-    }
-
-    @Override
-    public String toString() {
-        switch (type) {
-            case INSERT_BLOCK:
-                return "INSERT_BLOCK{id=" + blockId + ", parent=" + parentId + "}";
-
-            case DELETE_BLOCK:
-                return "DELETE_BLOCK{id=" + blockId + "}";
-
-            case SPLIT:
-                return "SPLIT_BLOCK{id=" + blockId + ", index=" + splitIndex + "}";
-
-            case MERGE:
-                return "MERGE_BLOCK{first=" + blockId + ", second=" + secondBlockId + "}";
-
-            case PASTE:
-                return "PASTE_BLOCK{parent=" + parentId + ", text=\"" + text + "\"}";
-
-            default:
-                return "UNKNOWN_BLOCK_OP";
-        }
+    public static BlockOperation paste(BlockId parentId, String text, String newBlockClock, int userId) {
+        BlockId newBlockId = new BlockId(userId, newBlockClock);
+        return new BlockOperation(Type.PASTE, newBlockId, parentId, null, -1, text, newBlockClock);
     }
 }

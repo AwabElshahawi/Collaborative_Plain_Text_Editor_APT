@@ -5,8 +5,13 @@ public class LocalClock {
     private final int userId;
 
     public LocalClock(int userId) {
-        this.userId  = userId;
+        this.userId = userId;
         this.counter = 0;
+    }
+
+    public LocalClock(int userId, int startCounter) {
+        this.userId = userId;
+        this.counter = startCounter;
     }
 
     public CharacterId next() {
@@ -18,5 +23,4 @@ public class LocalClock {
     public int getUserId() {
         return userId;
     }
-
 }

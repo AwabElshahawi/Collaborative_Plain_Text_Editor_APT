@@ -50,9 +50,28 @@ public class BlockCRDT {
         switch (op.type) {
             case INSERT_BLOCK -> insertBlock(op);
             case DELETE_BLOCK -> deleteBlock(op);
+
+            case SPLIT -> splitBlock(
+                    op.blockId,
+                    op.splitIndex,
+                    op.blockId.userId,
+                    op.newBlockClock
+            );
+
+            case MERGE -> mergeBlocks(
+                    op.blockId,
+                    op.secondBlockId,
+                    op.blockId.userId
+            );
+
+            case PASTE -> pasteBlock(
+                    op.parentId,
+                    op.text,
+                    op.blockId.userId,
+                    op.blockId.clock
+            );
         }
     }
-
     private void collectBlocks(BlockNode node, List<BlockNode> visibleBlocks) {
         if (node != root && !node.deleted) {
             visibleBlocks.add(node);
@@ -125,7 +144,8 @@ public class BlockCRDT {
 
         block.CharacterCRDT.tombstoneAll();
 
-        LocalClock leftClock = new LocalClock(userId);
+        int startLeft = block.CharacterCRDT.getMaxCounterForUser(userId);
+        LocalClock leftClock = new LocalClock(userId, startLeft);
         block.CharacterCRDT.insertText(left, leftClock);
 
         BlockId newBlockId = new BlockId(userId, newBlockClock);
@@ -155,9 +175,12 @@ public class BlockCRDT {
         String mergedText = first.CharacterCRDT.getText() + second.CharacterCRDT.getText();
 
         first.CharacterCRDT.tombstoneAll();
-        LocalClock mergeClock = new LocalClock(userId);
+
+        int startMerge = first.CharacterCRDT.getMaxCounterForUser(userId);
+        LocalClock mergeClock = new LocalClock(userId, startMerge);
         first.CharacterCRDT.insertText(mergedText, mergeClock);
 
         second.deleted = true;
     }
+
 }

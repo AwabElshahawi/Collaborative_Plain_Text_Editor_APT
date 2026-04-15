@@ -125,4 +125,19 @@ public class CharacterCRDT {
 
         return lastInserted;
     }
+    public int getMaxCounterForUser(int userId) {
+        int maxCounter = 0;
+
+        for (CharacterId id : charMap.keySet()) {
+            if (id.userId == userId) {
+                String[] parts = id.clock.split(":");
+                int value = Integer.parseInt(parts[0]) * 60 + Integer.parseInt(parts[1]);
+                if (value > maxCounter) {
+                    maxCounter = value;
+                }
+            }
+        }
+
+        return maxCounter;
+    }
 }
