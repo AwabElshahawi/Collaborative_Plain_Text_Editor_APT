@@ -27,7 +27,16 @@ public class CharacterCRDT {
     }
 
     public void insert(Operation op){
-        if(charMap.containsKey(op.charId)){
+//        if(charMap.containsKey(op.charId)){
+//            return;
+//        }
+        if (charMap.containsKey(op.charId)) {
+            CharacterNode existing = charMap.get(op.charId);
+
+            if (existing.deleted) {
+                existing.deleted = false;
+            }
+
             return;
         }
         CharacterNode parent = (op.parentId == null) ? root : charMap.get(op.parentId);
@@ -64,6 +73,9 @@ public class CharacterCRDT {
             System.out.println("Deleted character");
             return;
         }
+        op.prevBold = Node.bold;
+        op.prevItalic = Node.italic;
+        
         Node.bold = op.bold;
         Node.italic = op.italic;
     }

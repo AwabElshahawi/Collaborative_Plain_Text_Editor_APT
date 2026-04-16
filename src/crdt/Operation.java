@@ -14,6 +14,8 @@ public class Operation {
     public final char value;
     public boolean bold;
     public boolean italic;
+    boolean prevBold;
+    boolean prevItalic;
 
     private Operation(Type type, CharacterId charId, CharacterId parentId,
                       char value, boolean bold, boolean italic) {

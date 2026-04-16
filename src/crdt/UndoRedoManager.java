@@ -36,9 +36,7 @@ public class UndoRedoManager {
                 return Operation.insert(node.id, node.parentId, node.value);
 
             case FORMAT:
-                node = crdt.findNode(op.charId);
-                return Operation.format(node.id, !node.bold, !node.italic);
-
+                return Operation.format(op.charId, op.prevBold, op.prevItalic);
         }
 
         throw new IllegalArgumentException("Unsupported operation type");
