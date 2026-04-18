@@ -121,9 +121,6 @@ public class ClientConnection {
         this.currentBlockId = blockId;
     }
 
-    // =========================
-    // CONNECT
-    // =========================
     public void connect() {
         try {
             WebSocketContainer container = ContainerProvider.getWebSocketContainer();
@@ -138,21 +135,21 @@ public class ClientConnection {
     public void onOpen(Session session) {
         this.session = session;
         System.out.println("Connected to server via Jakarta WebSocket");
+
+
     }
 
-    // =========================
-    // RECEIVE
-    // =========================
+
     @OnMessage
     public void onMessage(String message) {
         try {
+            System.out.println("CLIENT RECEIVED DATA FROM SERVER: " + message);
             MessageWrapper wrapper = gson.fromJson(message, MessageWrapper.class);
 
             if ("CHAR".equals(wrapper.kind)) {
                 Operation op = gson.fromJson(gson.toJson(wrapper.data), Operation.class);
                 controller.applyRemoteCharOperation(currentBlockId, op);
-            }
-            else if ("BLOCK".equals(wrapper.kind)) {
+            } else if ("BLOCK".equals(wrapper.kind)) {
                 BlockOperation op = gson.fromJson(gson.toJson(wrapper.data), BlockOperation.class);
                 controller.applyRemoteBlockOperation(op);
             }
@@ -173,9 +170,7 @@ public class ClientConnection {
         throwable.printStackTrace();
     }
 
-    // =========================
-    // SEND CHAR OP
-    // =========================
+
     public void sendOperation(Operation op) {
         if (session != null && session.isOpen()) {
             MessageWrapper wrapper = new MessageWrapper("CHAR", op);
@@ -183,13 +178,14 @@ public class ClientConnection {
         }
     }
 
-    // =========================
-    // SEND BLOCK OP
-    // =========================
+
     public void sendBlockOperation(BlockOperation op) {
-        if (session != null && session.isOpen()) {
+        try {
             MessageWrapper wrapper = new MessageWrapper("BLOCK", op);
-            session.getAsyncRemote().sendText(gson.toJson(wrapper));
+            String json = gson.toJson(wrapper);
+            session.getAsyncRemote().sendText(json);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }

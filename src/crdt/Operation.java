@@ -17,7 +17,7 @@ public class Operation {
     boolean prevBold;
     boolean prevItalic;
 
-    private Operation(Type type, CharacterId charId, CharacterId parentId,
+    public Operation(Type type, CharacterId charId, CharacterId parentId,
                       char value, boolean bold, boolean italic) {
         this.type     = type;
         this.charId   = charId;
