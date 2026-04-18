@@ -1,4 +1,4 @@
-package crdt;
+package main.java.crdt;
 
 public class Operation {
 

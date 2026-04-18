@@ -1,7 +1,7 @@
-package Network;
+package main.java.Network;
 
 import com.google.gson.Gson;
-import crdt.*;
+import main.java.crdt.*;
 
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.client.WebSocketClient;
@@ -36,7 +36,16 @@ public class ClientConnection extends TextWebSocketHandler {
             e.printStackTrace();
         }
     }
-
+    public void disconnect() {
+        if (session != null && session.isOpen()) {
+            try {
+                session.close(CloseStatus.NORMAL);
+                System.out.println("Disconnected cleanly");
+            } catch (IOException e) {
+                System.err.println("Error closing session: " + e.getMessage());
+            }
+        }
+    }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
