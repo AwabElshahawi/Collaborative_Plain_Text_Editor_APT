@@ -31,6 +31,10 @@ public class Operation {
         return new Operation(Type.INSERT, charId, parentId, value, false, false);
     }
 
+    public static Operation insert(CharacterId charId, CharacterId parentId, char value, boolean bold, boolean italic) {
+    return new Operation(Type.INSERT, charId, parentId, value, bold, italic);
+    }
+    
     public static Operation delete(CharacterId charId) {
         return new Operation(Type.DELETE, charId, null, '\0', false, false);
     }

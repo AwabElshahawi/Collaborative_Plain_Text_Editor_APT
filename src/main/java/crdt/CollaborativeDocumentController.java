@@ -68,18 +68,22 @@ public class CollaborativeDocumentController {
         return visible.get(visibleIndex - 1);
     }
 
-    public Operation localInsertChar(BlockId blockId, int visibleIndex, char value) {
+  public Operation localInsertChar(BlockId blockId, int visibleIndex, char value, boolean bold, boolean italic) {
         BlockNode block = requireBlock(blockId);
 
         CharacterId parentId = resolveInsertParentId(blockId, visibleIndex);
         CharacterId newId = localClock.next();
 
-        Operation op = Operation.insert(newId, parentId, value);
+        Operation op = Operation.insert(newId, parentId, value, bold, italic);
         block.CharacterCRDT.apply(op);
 
         return op;
     }
 
+    public Operation localInsertChar(BlockId blockId, int visibleIndex, char value) {
+         return localInsertChar(blockId, visibleIndex, value, false, false);
+    }
+    
     public Operation localDeleteChar(BlockId blockId, int visibleIndex) {
         BlockNode block = requireBlock(blockId);
         CharacterNode target = resolveDeleteTarget(blockId, visibleIndex);
