@@ -1,7 +1,5 @@
-package main.java;
 
-import main.java.crdt.*;
-
+import crdt.*;
 public class TestController {
 
     public static void main(String[] args) {
