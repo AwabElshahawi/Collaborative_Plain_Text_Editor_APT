@@ -1,4 +1,6 @@
-import crdt.*;
+package main.java;
+
+import main.java.crdt.*;
 
 public class TestController {
 

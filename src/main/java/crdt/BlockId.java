@@ -1,4 +1,4 @@
-package crdt;
+package main.java.crdt;
 
 import java.util.Objects;
 

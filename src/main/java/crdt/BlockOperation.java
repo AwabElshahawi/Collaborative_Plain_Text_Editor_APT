@@ -1,4 +1,4 @@
-package crdt;
+package main.java.crdt;
 
 public class BlockOperation {
 
@@ -18,7 +18,7 @@ public class BlockOperation {
     public final String text;
     public final String newBlockClock;
 
-    private BlockOperation(Type type,
+    public BlockOperation(Type type,
                            BlockId blockId,
                            BlockId parentId,
                            BlockId secondBlockId,

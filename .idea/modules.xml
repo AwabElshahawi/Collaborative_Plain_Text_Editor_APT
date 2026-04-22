@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/TextEditorAPT.iml" filepath="$PROJECT_DIR$/TextEditorAPT.iml" />
+      <module fileurl="file://$PROJECT_DIR$/collaborative-editor.iml" filepath="$PROJECT_DIR$/collaborative-editor.iml" />
     </modules>
   </component>
 </project>
