@@ -1,5 +1,4 @@
-package main.java.crdt;
-
+package crdt;
 import java.util.*;
 
 

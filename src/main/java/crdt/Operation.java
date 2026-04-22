@@ -1,5 +1,4 @@
-package main.java.crdt;
-
+package crdt;
 public class Operation {
 
     public enum Type {

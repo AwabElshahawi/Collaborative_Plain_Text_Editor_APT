@@ -1,4 +1,4 @@
-package main.java.crdt;
+package crdt;
 
 public class BlockOperation {
 

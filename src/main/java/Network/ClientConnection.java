@@ -1,7 +1,7 @@
-package main.java.Network;
+package Network;
 
 import com.google.gson.Gson;
-import main.java.crdt.*;
+import crdt.*;
 
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.client.WebSocketClient;

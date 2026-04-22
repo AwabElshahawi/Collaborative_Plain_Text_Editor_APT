@@ -1,5 +1,7 @@
-package main.java.Network;
+package Network;
 
+import com.google.gson.Gson;
+import crdt.*;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.springframework.stereotype.Component;

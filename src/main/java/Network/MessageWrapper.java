@@ -1,4 +1,6 @@
-package main.java.Network;
+
+package Network;
+
 
 public class MessageWrapper {
     public String kind;   // "CHAR" or "BLOCK"
