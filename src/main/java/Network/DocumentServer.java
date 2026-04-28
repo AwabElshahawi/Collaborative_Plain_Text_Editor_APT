@@ -39,8 +39,8 @@ public class DocumentServer extends TextWebSocketHandler {
         try{
             String msg = message.getPayload();
             JsonObject wrapper = JsonParser.parseString(msg).getAsJsonObject();
-            String kind = wrapper.get("Kind").getAsString();
-            Object data = wrapper.get("Data");
+            String kind = wrapper.get("kind").getAsString();
+            Object data = wrapper.get("data");
             System.out.println("Received Message[ " + kind + " ]: " + data);
 
             synchronized (openSessions){
