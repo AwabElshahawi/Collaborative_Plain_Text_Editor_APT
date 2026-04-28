@@ -18,11 +18,9 @@ public class ClientConnection extends TextWebSocketHandler {
     private final Gson gson = new Gson();
 
     private final CollaborativeDocumentController controller;
-    private final BlockId currentBlockId;
 
-    public ClientConnection(CollaborativeDocumentController controller, BlockId blockId) {
+    public ClientConnection(CollaborativeDocumentController controller) {
         this.controller     = controller;
-        this.currentBlockId = blockId;
     }
 
 
@@ -64,7 +62,8 @@ public class ClientConnection extends TextWebSocketHandler {
 
             if ("CHAR".equals(wrapper.kind)) {
                 Operation op = gson.fromJson(gson.toJson(wrapper.data), Operation.class);
-                controller.applyRemoteCharOperation(currentBlockId, op);
+                BlockId id = BlockId.fromString(wrapper.blockId);
+                controller.applyRemoteCharOperation(id, op);
             } else if ("BLOCK".equals(wrapper.kind)) {
                 BlockOperation op = gson.fromJson(gson.toJson(wrapper.data), BlockOperation.class);
                 controller.applyRemoteBlockOperation(op);
@@ -89,10 +88,10 @@ public class ClientConnection extends TextWebSocketHandler {
         throwable.printStackTrace();
     }
 
-    public void sendOperation(Operation op) {
+    public void sendOperation(Operation op, BlockId blockid) {
         if (session != null && session.isOpen()) {
             try {
-                MessageWrapper wrapper = new MessageWrapper("CHAR", op);
+                MessageWrapper wrapper = new MessageWrapper("CHAR", op,blockid.toString());
                 String json = gson.toJson(wrapper);
                 session.sendMessage(new TextMessage(json));
             } catch (IOException e) {
@@ -105,10 +104,10 @@ public class ClientConnection extends TextWebSocketHandler {
     }
 
 
-    public void sendBlockOperation(BlockOperation op) {
+    public void sendBlockOperation(BlockOperation op,BlockId blockId) {
         if (session != null && session.isOpen()) {
             try {
-                MessageWrapper wrapper = new MessageWrapper("BLOCK", op);
+                MessageWrapper wrapper = new MessageWrapper("BLOCK", op,blockId.toString());
                 String json = gson.toJson(wrapper);
                 session.sendMessage(new TextMessage(json));
             } catch (IOException e) {
