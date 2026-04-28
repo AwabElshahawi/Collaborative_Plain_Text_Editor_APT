@@ -194,8 +194,8 @@ public class EditorUI extends Application {
         textFlow.setPadding(new Insets(12));
         textFlow.setLineSpacing(2);
         textFlow.setFocusTraversable(true);
-        textFlow.addEventFilter(KeyEvent.KEY_PRESSED, this::handleKeyPress);
-        textFlow.addEventFilter(KeyEvent.KEY_TYPED, KeyEvent::consume);
+        textFlow.addEventFilter(KeyEvent.KEY_PRESSED, this::handleSpecialKeyPress);
+        textFlow.addEventFilter(KeyEvent.KEY_TYPED, this::handleTypedCharacter);
         textFlow.setOnMouseClicked(e -> textFlow.requestFocus());
 
         // AnchorPane makes TextFlow fill the full white area
@@ -284,75 +284,177 @@ public class EditorUI extends Application {
     //  KEY HANDLING
     // ─────────────────────────────────────────────────────────────────
 
-    private void handleKeyPress(KeyEvent event) {
+    private void handleSpecialKeyPress(KeyEvent event) {
         if (suppressListener || applyingRemote) return;
         if (controller == null || currentBlockId == null) return;
 
         KeyCode code = event.getCode();
 
-        if (event.isControlDown()) return;
-
         if (code == KeyCode.ENTER) {
-            Operation op = controller.localInsertChar(currentBlockId, caretPos, '\n');
-            if (op != null && clientConnection.isConnected()){
-               clientConnection.sendOperation(op,currentBlockId);
+
+            int blockSize = controller.getDocument()
+                    .findBlock(currentBlockId)
+                    .CharacterCRDT
+                    .getVisibleCharacters()
+                    .size();
+
+            String newClock = String.valueOf(System.currentTimeMillis());
+            BlockId newBlockId = new BlockId(userId, newClock);
+
+            BlockOperation op;
+
+            if (caretPos >= blockSize) {
+                // caret at end -> create empty new block
+                op = controller.localInsertBlock(newBlockId, currentBlockId);
+            } else {
+                // caret in middle -> split current block
+                op = controller.localSplitBlock(currentBlockId, caretPos, newClock);
             }
-            caretPos++;
+
+            if (op != null && clientConnection != null && clientConnection.isConnected()) {
+                clientConnection.sendBlockOperation(op, currentBlockId);
+            }
+
+            currentBlockId = newBlockId;
+            caretPos = 0;
+
             refreshEditor(caretPos);
+
             event.consume();
             return;
         }
-
         if (code == KeyCode.BACK_SPACE) {
             if (caretPos > 0) {
                 Operation op = controller.localDeleteChar(currentBlockId, caretPos);
+
                 if (op != null) {
                     caretPos--;
-                    if (clientConnection.isConnected()){
-                            clientConnection.sendOperation(op,currentBlockId);
+                    if (clientConnection != null && clientConnection.isConnected()) {
+                        clientConnection.sendOperation(op, currentBlockId);
                     }
                 }
+
+                refreshEditor(caretPos);
+                event.consume();
+                return;
+            }
+
+            // caretPos == 0: merge with previous block
+            List<BlockNode> blocks = controller.getDocument().getVisibleBlocks();
+            int currentIndex = -1;
+
+            for (int i = 0; i < blocks.size(); i++) {
+                if (blocks.get(i).id.equals(currentBlockId)) {
+                    currentIndex = i;
+                    break;
+                }
+            }
+
+            if (currentIndex > 0) {
+                BlockId previousBlockId = blocks.get(currentIndex - 1).id;
+                int previousSize = blocks.get(currentIndex - 1)
+                        .CharacterCRDT.getVisibleCharacters().size();
+
+                BlockOperation op = controller.localMergeBlocks(previousBlockId, currentBlockId);
+
+                if (op != null && clientConnection != null && clientConnection.isConnected()) {
+                    clientConnection.sendBlockOperation(op, previousBlockId);
+                }
+
+                currentBlockId = previousBlockId;
+                caretPos = previousSize;
                 refreshEditor(caretPos);
             }
+
             event.consume();
             return;
         }
 
         if (code == KeyCode.DELETE) {
             Operation op = controller.localDeleteChar(currentBlockId, caretPos + 1);
-            if (op != null) {
-                if (clientConnection != null && clientConnection.isConnected()) {
-                    clientConnection.sendOperation(op, currentBlockId);
-                }
-                refreshEditor(caretPos);
+
+            if (op != null && clientConnection != null && clientConnection.isConnected()) {
+                clientConnection.sendOperation(op, currentBlockId);
             }
+
+            refreshEditor(caretPos);
             event.consume();
             return;
         }
 
-            if (code == KeyCode.LEFT) {
-            if (caretPos > 0) caretPos--;
+        if (code == KeyCode.LEFT) {
+            if (caretPos > 0) {
+                caretPos--;
+            } else {
+                List<BlockNode> blocks = controller.getDocument().getVisibleBlocks();
+
+                for (int i = 0; i < blocks.size(); i++) {
+                    if (blocks.get(i).id.equals(currentBlockId)) {
+                        if (i > 0) {
+                            BlockNode previousBlock = blocks.get(i - 1);
+                            currentBlockId = previousBlock.id;
+                            caretPos = previousBlock.CharacterCRDT.getVisibleCharacters().size();
+                        }
+                        break;
+                    }
+                }
+            }
+
             refreshEditor(caretPos);
             event.consume();
             return;
         }
 
         if (code == KeyCode.RIGHT) {
-            int size = controller.getDocument().findBlock(currentBlockId)
-                           .CharacterCRDT.getVisibleCharacters().size();
-            if (caretPos < size) caretPos++;
+            int size = controller.getDocument()
+                    .findBlock(currentBlockId)
+                    .CharacterCRDT
+                    .getVisibleCharacters()
+                    .size();
+
+            if (caretPos < size) {
+                caretPos++;
+            } else {
+                List<BlockNode> blocks = controller.getDocument().getVisibleBlocks();
+
+                for (int i = 0; i < blocks.size(); i++) {
+                    if (blocks.get(i).id.equals(currentBlockId)) {
+                        if (i < blocks.size() - 1) {
+                            BlockNode nextBlock = blocks.get(i + 1);
+                            currentBlockId = nextBlock.id;
+                            caretPos = 0;
+                        }
+                        break;
+                    }
+                }
+            }
+
             refreshEditor(caretPos);
             event.consume();
             return;
         }
+    }
 
-        if (isNonPrintable(code)) return;
+    private void handleTypedCharacter(KeyEvent event) {
+        if (suppressListener || applyingRemote) return;
+        if (controller == null || currentBlockId == null) return;
 
-        String ch = event.getText();
+        String ch = event.getCharacter();
         if (ch == null || ch.isEmpty()) return;
 
         char c = ch.charAt(0);
-        controller.localInsertChar(currentBlockId, caretPos, c, isBold, isItalic);
+
+        if (c == '\b' || c == 127 || c == '\r' || c == '\n') {
+            event.consume();
+            return;
+        }
+
+        Operation op = controller.localInsertChar(currentBlockId, caretPos, c, isBold, isItalic);
+
+        if (op != null && clientConnection != null && clientConnection.isConnected()) {
+            clientConnection.sendOperation(op, currentBlockId);
+        }
+
         caretPos++;
         refreshEditor(caretPos);
         event.consume();
@@ -368,26 +470,39 @@ public class EditorUI extends Application {
 
         textFlow.getChildren().clear();
 
-        List<CharacterNode> visible = controller.getDocument()
-            .findBlock(currentBlockId)
-            .CharacterCRDT.getVisibleCharacters();
+        List<BlockNode> blocks = controller.getDocument().getVisibleBlocks();
 
-        for (int i = 0; i < visible.size(); i++) {
-            if (i == caretPos) textFlow.getChildren().add(makeCaret());
+        for (int b = 0; b < blocks.size(); b++) {
+            BlockNode block = blocks.get(b);
+            List<CharacterNode> visible = block.CharacterCRDT.getVisibleCharacters();
 
-            CharacterNode node = visible.get(i);
-            Text t = new Text(String.valueOf(node.value));
-            t.setFill(Color.web("#2d3436"));
-            t.setFont(Font.font(
-                "Consolas",
-                node.bold   ? FontWeight.BOLD   : FontWeight.NORMAL,
-                node.italic ? FontPosture.ITALIC : FontPosture.REGULAR,
-                15
-            ));
-            textFlow.getChildren().add(t);
+            boolean isCurrentBlock = block.id.equals(currentBlockId);
+
+            for (int i = 0; i < visible.size(); i++) {
+                if (isCurrentBlock && i == caretPos) {
+                    textFlow.getChildren().add(makeCaret());
+                }
+
+                CharacterNode node = visible.get(i);
+                Text t = new Text(String.valueOf(node.value));
+                t.setFill(Color.web("#2d3436"));
+                t.setFont(Font.font(
+                        "Consolas",
+                        node.bold ? FontWeight.BOLD : FontWeight.NORMAL,
+                        node.italic ? FontPosture.ITALIC : FontPosture.REGULAR,
+                        15
+                ));
+                textFlow.getChildren().add(t);
+            }
+
+            if (isCurrentBlock && caretPos >= visible.size()) {
+                textFlow.getChildren().add(makeCaret());
+            }
+
+            if (b < blocks.size() - 1) {
+                textFlow.getChildren().add(new Text("\n"));
+            }
         }
-
-        if (caretPos >= visible.size()) textFlow.getChildren().add(makeCaret());
 
         suppressListener = false;
     }
@@ -560,4 +675,5 @@ public class EditorUI extends Application {
                code == KeyCode.END    || code == KeyCode.PAGE_UP  ||
                code == KeyCode.PAGE_DOWN || code.isFunctionKey();
     }
+
 }
