@@ -133,7 +133,7 @@ public class EditorUI extends Application {
             currentBlockId = controller.createFirstBlock();
             activeUsers.put(username, randomColor(userId));
 
-            clientConnection = new Network.ClientConnection(controller);
+            clientConnection = new Network.ClientConnection(controller,this,"ws://localhost:8080/ws");
             clientConnection.connect();
 
             showEditorScreen();
