@@ -42,29 +42,21 @@ public class UndoRedoManager {
 
     }
 
-    public void undo() {
-        
-        if (undoStack.isEmpty()) {
-            System.out.println("Nothing to undo");
-            return;
-        }
-        
+    public Operation undo() {
+        if (undoStack.isEmpty()) return null;
         Operation op = undoStack.pop();
         Operation inverseOp = getInverse(op);
         crdt.apply(inverseOp);
         redoStack.push(op);
+        return inverseOp;  // ← return so UI can send it
     }
 
-    public void redo() {
-
-        if (redoStack.isEmpty()) {
-            System.out.println("Nothing to redo");
-            return;
-        }
-
+    public Operation redo() {
+        if (redoStack.isEmpty()) return null;
         Operation op = redoStack.pop();
         crdt.apply(op);
         undoStack.push(op);
+        return op;  // ← return so UI can send it
     }
 
 }

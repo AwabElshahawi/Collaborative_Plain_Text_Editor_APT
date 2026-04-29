@@ -1,6 +1,9 @@
 package Network;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import crdt.*;
 
 import org.springframework.web.socket.*;
@@ -20,20 +23,19 @@ public class ClientConnection extends TextWebSocketHandler {
     private final CollaborativeDocumentController controller;
 
     public ClientConnection(CollaborativeDocumentController controller) {
-        this.controller     = controller;
+        this.controller = controller;
     }
-
 
     public void connect() {
         try {
             WebSocketClient client = new StandardWebSocketClient();
-
             client.execute(this, "ws://localhost:8080/ws").get();
         } catch (InterruptedException | ExecutionException e) {
             System.err.println("Connection failed: " + e.getMessage());
             e.printStackTrace();
         }
     }
+
     public void disconnect() {
         if (session != null && session.isOpen()) {
             try {
@@ -51,21 +53,26 @@ public class ClientConnection extends TextWebSocketHandler {
         System.out.println("Connected to server via Spring WebSocket");
     }
 
-
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         try {
             String payload = message.getPayload();
             System.out.println("CLIENT RECEIVED DATA FROM SERVER: " + payload);
 
-            MessageWrapper wrapper = gson.fromJson(payload, MessageWrapper.class);
+            // Parse the raw JSON directly — no double-conversion via Object/LinkedTreeMap
+            JsonObject wrapper = JsonParser.parseString(payload).getAsJsonObject();
+            String kind        = wrapper.get("kind").getAsString();
+            JsonElement data   = wrapper.get("data");
+            String blockId     = wrapper.get("blockId").getAsString();
 
-            if ("CHAR".equals(wrapper.kind)) {
-                Operation op = gson.fromJson(gson.toJson(wrapper.data), Operation.class);
-                BlockId id = BlockId.fromString(wrapper.blockId);
+            if ("CHAR".equals(kind)) {
+                // Direct deserialization from JsonElement preserves char correctly
+                Operation op = gson.fromJson(data, Operation.class);
+                BlockId id   = BlockId.fromString(blockId);
                 controller.applyRemoteCharOperation(id, op);
-            } else if ("BLOCK".equals(wrapper.kind)) {
-                BlockOperation op = gson.fromJson(gson.toJson(wrapper.data), BlockOperation.class);
+
+            } else if ("BLOCK".equals(kind)) {
+                BlockOperation op = gson.fromJson(data, BlockOperation.class);
                 controller.applyRemoteBlockOperation(op);
             }
 
@@ -74,7 +81,6 @@ public class ClientConnection extends TextWebSocketHandler {
             e.printStackTrace();
         }
     }
-
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
@@ -88,12 +94,16 @@ public class ClientConnection extends TextWebSocketHandler {
         throwable.printStackTrace();
     }
 
-    public void sendOperation(Operation op, BlockId blockid) {
+    public void sendOperation(Operation op, BlockId blockId) {
         if (session != null && session.isOpen()) {
             try {
-                MessageWrapper wrapper = new MessageWrapper("CHAR", op,blockid.toString());
-                String json = gson.toJson(wrapper);
-                session.sendMessage(new TextMessage(json));
+                // Serialize op directly to JsonElement — no Object wrapper needed
+                JsonObject wrapper = new JsonObject();
+                wrapper.addProperty("kind", "CHAR");
+                wrapper.add("data", gson.toJsonTree(op));
+                wrapper.addProperty("blockId", blockId.toString());
+
+                session.sendMessage(new TextMessage(wrapper.toString()));
             } catch (IOException e) {
                 System.err.println("Failed to send CHAR operation: " + e.getMessage());
                 e.printStackTrace();
@@ -103,13 +113,15 @@ public class ClientConnection extends TextWebSocketHandler {
         }
     }
 
-
-    public void sendBlockOperation(BlockOperation op,BlockId blockId) {
+    public void sendBlockOperation(BlockOperation op, BlockId blockId) {
         if (session != null && session.isOpen()) {
             try {
-                MessageWrapper wrapper = new MessageWrapper("BLOCK", op,blockId.toString());
-                String json = gson.toJson(wrapper);
-                session.sendMessage(new TextMessage(json));
+                JsonObject wrapper = new JsonObject();
+                wrapper.addProperty("kind", "BLOCK");
+                wrapper.add("data", gson.toJsonTree(op));
+                wrapper.addProperty("blockId", blockId.toString());
+
+                session.sendMessage(new TextMessage(wrapper.toString()));
             } catch (IOException e) {
                 System.err.println("Failed to send BLOCK operation: " + e.getMessage());
                 e.printStackTrace();
@@ -118,7 +130,6 @@ public class ClientConnection extends TextWebSocketHandler {
             System.out.println("Cannot send — not connected");
         }
     }
-
 
     public boolean isConnected() {
         return session != null && session.isOpen();

@@ -1,5 +1,8 @@
 package crdt;
+
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class CollaborativeDocumentController {
 
@@ -8,12 +11,38 @@ public class CollaborativeDocumentController {
     private final int localUserId;
     private boolean applyingRemote;
 
+    // One UndoRedoManager per block
+    private final Map<BlockId, UndoRedoManager> undoRedoManagers = new HashMap<>();
+
     public CollaborativeDocumentController(int localUserId) {
         this.document = new BlockCRDT();
         this.localUserId = localUserId;
         this.localClock = new LocalClock(localUserId);
         this.applyingRemote = false;
     }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  UNDO / REDO
+    // ─────────────────────────────────────────────────────────────────
+
+    private UndoRedoManager getUndoManager(BlockId blockId) {
+        return undoRedoManagers.computeIfAbsent(blockId, id ->
+                new UndoRedoManager(document.findBlock(id).CharacterCRDT));
+    }
+
+    /** Undo last character operation in the given block. Returns inverse op to broadcast. */
+    public Operation undo(BlockId blockId) {
+        return getUndoManager(blockId).undo();
+    }
+
+    /** Redo last undone character operation in the given block. Returns op to broadcast. */
+    public Operation redo(BlockId blockId) {
+        return getUndoManager(blockId).redo();
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  GETTERS
+    // ─────────────────────────────────────────────────────────────────
 
     public BlockCRDT getDocument() {
         return document;
@@ -31,13 +60,15 @@ public class CollaborativeDocumentController {
         return document.getDocumentText();
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    //  HELPERS
+    // ─────────────────────────────────────────────────────────────────
+
     private BlockNode requireBlock(BlockId blockId) {
         BlockNode block = document.findBlock(blockId);
-
         if (block == null || block.deleted) {
             throw new IllegalArgumentException("Block not found: " + blockId);
         }
-
         return block;
     }
 
@@ -48,11 +79,9 @@ public class CollaborativeDocumentController {
         if (visibleIndex <= 0) {
             return block.CharacterCRDT.getRootId();
         }
-
         if (visibleIndex > visible.size()) {
             visibleIndex = visible.size();
         }
-
         return visible.get(visibleIndex - 1).id;
     }
 
@@ -63,36 +92,43 @@ public class CollaborativeDocumentController {
         if (visibleIndex <= 0 || visibleIndex > visible.size()) {
             return null;
         }
-
         return visible.get(visibleIndex - 1);
     }
 
-  public Operation localInsertChar(BlockId blockId, int visibleIndex, char value, boolean bold, boolean italic) {
+    // ─────────────────────────────────────────────────────────────────
+    //  CHARACTER OPERATIONS
+    // ─────────────────────────────────────────────────────────────────
+
+    public Operation localInsertChar(BlockId blockId, int visibleIndex, char value, boolean bold, boolean italic) {
         BlockNode block = requireBlock(blockId);
 
         CharacterId parentId = resolveInsertParentId(blockId, visibleIndex);
-        CharacterId newId = localClock.next();
+        CharacterId newId    = localClock.next();
 
         Operation op = Operation.insert(newId, parentId, value, bold, italic);
         block.CharacterCRDT.apply(op);
+
+        // Record for undo
+        getUndoManager(blockId).record(op);
 
         return op;
     }
 
     public Operation localInsertChar(BlockId blockId, int visibleIndex, char value) {
-         return localInsertChar(blockId, visibleIndex, value, false, false);
+        return localInsertChar(blockId, visibleIndex, value, false, false);
     }
-    
+
     public Operation localDeleteChar(BlockId blockId, int visibleIndex) {
         BlockNode block = requireBlock(blockId);
         CharacterNode target = resolveDeleteTarget(blockId, visibleIndex);
 
-        if (target == null) {
-            return null;
-        }
+        if (target == null) return null;
 
         Operation op = Operation.delete(target.id);
         block.CharacterCRDT.apply(op);
+
+        // Record for undo
+        getUndoManager(blockId).record(op);
 
         return op;
     }
@@ -101,14 +137,14 @@ public class CollaborativeDocumentController {
         BlockNode block = requireBlock(blockId);
         List<CharacterNode> visible = block.CharacterCRDT.getVisibleCharacters();
 
-        if (visibleIndex < 0 || visibleIndex >= visible.size()) {
-            return null;
-        }
+        if (visibleIndex < 0 || visibleIndex >= visible.size()) return null;
 
         CharacterNode target = visible.get(visibleIndex);
-
         Operation op = Operation.format(target.id, bold, italic);
         block.CharacterCRDT.apply(op);
+
+        // Record for undo
+        getUndoManager(blockId).record(op);
 
         return op;
     }
@@ -118,7 +154,12 @@ public class CollaborativeDocumentController {
         applyingRemote = true;
         block.CharacterCRDT.apply(op);
         applyingRemote = false;
+        // Remote ops are NOT recorded in undo stack
     }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  BLOCK OPERATIONS
+    // ─────────────────────────────────────────────────────────────────
 
     public BlockOperation localInsertBlock(BlockId newBlockId, BlockId parentId) {
         BlockOperation op = BlockOperation.insert(newBlockId, parentId);

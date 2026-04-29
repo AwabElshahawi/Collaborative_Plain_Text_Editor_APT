@@ -7,12 +7,12 @@ public class Operation {
         FORMAT
     }
 
-    public final Type type;
-    public final CharacterId charId;
-    public final CharacterId parentId;
-    public final char value;
-    public boolean bold;
-    public boolean italic;
+    public Type        type;
+    public CharacterId charId;
+    public CharacterId parentId;
+    public char        value;
+    public boolean     bold;
+    public boolean     italic;
     boolean prevBold;
     boolean prevItalic;
 
