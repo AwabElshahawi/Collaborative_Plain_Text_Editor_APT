@@ -299,7 +299,8 @@ public class EditorUI extends Application {
 
     private void handleSpecialKeyPress(KeyEvent event) {
         if (suppressListener || applyingRemote) return;
-        if (controller == null || currentBlockId == null) return;
+        if (controller == null) return;
+        if (!ensureCurrentBlockAvailable()) return;
 
         KeyCode code    = event.getCode();
         boolean shift   = event.isShiftDown();
@@ -522,7 +523,8 @@ public class EditorUI extends Application {
 
     private void handleTypedCharacter(KeyEvent event) {
         if (suppressListener || applyingRemote) return;
-        if (controller == null || currentBlockId == null) return;
+        if (controller == null) return;
+        if (!ensureCurrentBlockAvailable()) return;
 
         // ── Block Ctrl/Meta combos — handled in handleSpecialKeyPress ──
         if (event.isControlDown() || event.isMetaDown()) {
@@ -847,6 +849,7 @@ public class EditorUI extends Application {
     public void onRemoteBlockOperationReceived(BlockOperation op) {
         Platform.runLater(() -> {
             controller.applyRemoteBlockOperation(op);
+            ensureCurrentBlockAvailable();
             refreshEditor();
         });
     }
@@ -892,6 +895,31 @@ public class EditorUI extends Application {
     // ─────────────────────────────────────────────────────────────────
     //  HELPERS
     // ─────────────────────────────────────────────────────────────────
+
+
+    private boolean ensureCurrentBlockAvailable() {
+        if (controller == null) return false;
+
+        BlockNode current = (currentBlockId == null) ? null : controller.getDocument().findBlock(currentBlockId);
+        if (current != null && !current.deleted) {
+            int size = current.CharacterCRDT.getVisibleCharacters().size();
+            caretPos = Math.max(0, Math.min(caretPos, size));
+            return true;
+        }
+
+        List<BlockNode> blocks = controller.getDocument().getVisibleBlocks();
+        if (!blocks.isEmpty()) {
+            currentBlockId = blocks.get(0).id;
+            caretPos = Math.min(caretPos, blocks.get(0).CharacterCRDT.getVisibleCharacters().size());
+            clearSelection();
+            return true;
+        }
+
+        currentBlockId = controller.createFirstBlock();
+        caretPos = 0;
+        clearSelection();
+        return currentBlockId != null;
+    }
 
     private void setStatus(String text, String hexColor) {
         if (statusLabel != null) {
