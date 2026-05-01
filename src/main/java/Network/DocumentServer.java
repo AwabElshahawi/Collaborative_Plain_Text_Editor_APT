@@ -18,6 +18,7 @@ import java.util.Set;
 public class DocumentServer extends TextWebSocketHandler {
     private static final Set<WebSocketSession> openSessions = Collections.synchronizedSet(new HashSet<>());
     private static final Map<String, JsonObject> presenceBySessionId = Collections.synchronizedMap(new HashMap<>());
+    private static final Set<String> knownDocumentSessions = Collections.synchronizedSet(new HashSet<>());
     private final Gson gson = new Gson();
     @Override
     public void afterConnectionEstablished(WebSocketSession session){
@@ -34,7 +35,8 @@ public class DocumentServer extends TextWebSocketHandler {
             leavePayload.addProperty("action", "LEAVE");
             leavePayload.addProperty("username", departed.get("username").getAsString());
             leavePayload.addProperty("color", departed.get("color").getAsString());
-            broadcast(new MessageWrapper("PRESENCE", leavePayload, ""), session.getId());
+            String targetSessionId = departed.has("sessionId") ? departed.get("sessionId").getAsString() : "";
+            broadcast(new MessageWrapper("PRESENCE", leavePayload, "", targetSessionId), session.getId(), targetSessionId);
         }
         openSessions.remove(session);
         System.out.println("Session closed: " + session.getId());
@@ -59,6 +61,21 @@ public class DocumentServer extends TextWebSocketHandler {
                 JsonObject presence = data.getAsJsonObject();
                 String action = presence.get("action").getAsString();
                 if ("JOIN".equals(action)) {
+                    String targetSessionId = presence.has("sessionId") ? presence.get("sessionId").getAsString() : "";
+                    String mode = presence.has("mode") ? presence.get("mode").getAsString() : "EDITOR";
+                    if ("EDITOR".equals(mode)) {
+                        knownDocumentSessions.add(targetSessionId);
+                    } else if (!knownDocumentSessions.contains(targetSessionId)) {
+                        JsonObject reject = new JsonObject();
+                        reject.addProperty("action", "REJECT");
+                        reject.addProperty("reason", "There is no session with this ID.");
+                        session.sendMessage(new TextMessage(gson.toJson(new MessageWrapper("SESSION", reject, "", targetSessionId))));
+                        return;
+                    }
+                    JsonObject accept = new JsonObject();
+                    accept.addProperty("action", "ACCEPT");
+                    session.sendMessage(new TextMessage(gson.toJson(new MessageWrapper("SESSION", accept, "", targetSessionId))));
+
                     presenceBySessionId.put(session.getId(), presence);
 
                     synchronized (presenceBySessionId) {
@@ -69,27 +86,34 @@ public class DocumentServer extends TextWebSocketHandler {
                             existingJoin.addProperty("action", "JOIN");
                             existingJoin.addProperty("username", existing.get("username").getAsString());
                             existingJoin.addProperty("color", existing.get("color").getAsString());
-                            session.sendMessage(new TextMessage(gson.toJson(new MessageWrapper("PRESENCE", existingJoin, ""))));
+                            String existingSessionId = existing.has("sessionId") ? existing.get("sessionId").getAsString() : "";
+                            if (!existingSessionId.equals(presence.get("sessionId").getAsString())) continue;
+                            session.sendMessage(new TextMessage(gson.toJson(new MessageWrapper("PRESENCE", existingJoin, "", existingSessionId))));
                         }
                     }
                 }
             }
 
-            broadcastRaw(msg, session.getId());
+            String targetSessionId = wrapper.has("sessionId") ? wrapper.get("sessionId").getAsString() : "";
+            broadcastRaw(msg, session.getId(), targetSessionId);
         }
         catch (Exception e){
             System.err.println("Error Handling Message: " + e.getMessage());
             e.printStackTrace();
         }
     }
-    private void broadcast(MessageWrapper wrapper, String senderSessionId) {
-        broadcastRaw(gson.toJson(wrapper), senderSessionId);
+    private void broadcast(MessageWrapper wrapper, String senderSessionId, String targetSessionId) {
+        broadcastRaw(gson.toJson(wrapper), senderSessionId, targetSessionId);
     }
 
-    private void broadcastRaw(String payload, String senderSessionId) {
+    private void broadcastRaw(String payload, String senderSessionId, String targetSessionId) {
         synchronized (openSessions){
             for  (WebSocketSession s : openSessions){
                 if((!s.getId().equals(senderSessionId)) && s.isOpen()){
+                    JsonObject presence = presenceBySessionId.get(s.getId());
+                    if (targetSessionId != null && !targetSessionId.isEmpty()) {
+                        if (presence == null || !targetSessionId.equals(presence.get("sessionId").getAsString())) continue;
+                    }
                     try {
                         s.sendMessage(new TextMessage(payload));
                     } catch (Exception ignored) {}

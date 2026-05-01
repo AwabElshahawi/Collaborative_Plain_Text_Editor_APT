@@ -28,6 +28,9 @@ public class EditorUI extends Application {
     // ── Session info ─────────────────────────────────────────────────
     private String username;
     private String sessionId;
+    private String editorSessionId;
+    private String viewerSessionId;
+    private boolean readOnlyMode;
     private int userId;
     private String userColor;
 
@@ -60,6 +63,8 @@ public class EditorUI extends Application {
     // ── Flags ─────────────────────────────────────────────────────────
     private boolean suppressListener = false;
     private boolean applyingRemote   = false;
+    private boolean pendingJoinFlow  = false;
+    private String lastJoinAttemptedId = "";
 
     // Server Connection
     private Network.ClientConnection clientConnection;
@@ -76,7 +81,7 @@ public class EditorUI extends Application {
     public void start(Stage stage) {
         this.primaryStage = stage;
         stage.setTitle("Collaborative Text Editor");
-        showJoinScreen();
+        showEntryChoiceScreen();
     }
 
     @Override
@@ -85,86 +90,86 @@ public class EditorUI extends Application {
     }
 
     // ─────────────────────────────────────────────────────────────────
-    //  SCREEN 1 — JOIN SESSION
+    //  SCREEN 1 — ENTRY CHOICE
     // ─────────────────────────────────────────────────────────────────
 
-    private void showJoinScreen() {
+    private void showEntryChoiceScreen() {
         Label title = new Label("Collaborative Text Editor");
         title.setStyle("-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #2c3e50;");
 
-        Label subtitle = new Label("Join or start a session");
-        subtitle.setStyle("-fx-font-size: 13px; -fx-text-fill: #7f8c8d;");
+        Button createBtn = new Button("Create New Session");
+        createBtn.setStyle("-fx-pref-width: 260px; -fx-pref-height: 40px;");
+        createBtn.setOnAction(e -> showCreateSessionScreen());
 
-        Label userLabel = new Label("Username");
-        userLabel.setStyle("-fx-font-weight: bold;");
-        TextField userField = new TextField();
-        userField.setPromptText("Enter your name...");
-        userField.setStyle("-fx-pref-width: 300px; -fx-pref-height: 36px; -fx-font-size: 14px;");
+        Button joinBtn = new Button("Join Existing Session");
+        joinBtn.setStyle("-fx-pref-width: 260px; -fx-pref-height: 40px;");
+        joinBtn.setOnAction(e -> showJoinSessionScreen());
 
-        Label sessionLabel = new Label("Session / Document ID");
-        sessionLabel.setStyle("-fx-font-weight: bold;");
-        TextField sessionField = new TextField();
-        sessionField.setPromptText("Enter session ID (e.g. doc1)...");
-        sessionField.setStyle("-fx-pref-width: 300px; -fx-pref-height: 36px; -fx-font-size: 14px;");
-
-        Label errorLabel = new Label("");
-        errorLabel.setStyle("-fx-text-fill: #e74c3c; -fx-font-size: 12px;");
-
-        Button joinBtn = new Button("Join Session");
-        joinBtn.setStyle(
-                "-fx-background-color: #2ecc71; -fx-text-fill: white; " +
-                        "-fx-font-size: 14px; -fx-font-weight: bold; " +
-                        "-fx-pref-width: 300px; -fx-pref-height: 40px; " +
-                        "-fx-cursor: hand; -fx-background-radius: 6;"
-        );
-
-        joinBtn.setOnAction(e -> {
-            String uname   = userField.getText().trim();
-            String session = sessionField.getText().trim();
-
-            if (uname.isEmpty() || session.isEmpty()) {
-                errorLabel.setText("Please fill in both fields.");
-                return;
-            }
-
-            username       = uname;
-            sessionId      = session;
-            userId         = Math.abs(uname.hashCode()) % 10000;
-            controller     = new CollaborativeDocumentController(userId);
-            currentBlockId = controller.createFirstBlock();
-            userColor = randomColor(userId);
-            activeUsers.put(username, userColor);
-
-            clientConnection = new Network.ClientConnection(controller,this,"ws://localhost:8080/ws");
-            clientConnection.connect();
-
-            showEditorScreen();
-        });
-
-        sessionField.setOnKeyPressed(e -> {
-            if (e.getCode() == KeyCode.ENTER) joinBtn.fire();
-        });
-
-        VBox form = new VBox(10,
-                userLabel, userField,
-                sessionLabel, sessionField,
-                errorLabel, joinBtn
-        );
-        form.setAlignment(Pos.CENTER_LEFT);
-        form.setPadding(new Insets(30));
-        form.setStyle(
-                "-fx-background-color: white; -fx-background-radius: 12; " +
-                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.12), 12, 0, 0, 4);"
-        );
-        form.setMaxWidth(380);
-
-        VBox root = new VBox(16, title, subtitle, form);
+        VBox root = new VBox(16, title, createBtn, joinBtn);
         root.setAlignment(Pos.CENTER);
         root.setPadding(new Insets(40));
         root.setStyle("-fx-background-color: #ecf0f1;");
-
-        primaryStage.setScene(new Scene(root, 520, 480));
+        primaryStage.setScene(new Scene(root, 520, 360));
         primaryStage.show();
+    }
+
+    private void showCreateSessionScreen() {
+        TextField userField = new TextField();
+        userField.setPromptText("Enter your name...");
+        Label errorLabel = new Label();
+        Button createBtn = new Button("Create");
+        createBtn.setOnAction(e -> {
+            String uname = userField.getText().trim();
+            if (uname.isEmpty()) { errorLabel.setText("Please enter your name."); return; }
+            initializeSession(uname, UUID.randomUUID().toString().substring(0, 8), false, true);
+        });
+        VBox root = new VBox(10, new Label("Create Session"), new Label("Username"), userField, errorLabel, createBtn);
+        root.setPadding(new Insets(30));
+        root.setAlignment(Pos.CENTER_LEFT);
+        primaryStage.setScene(new Scene(new VBox(root), 520, 320));
+    }
+
+    private void showJoinSessionScreen() {
+        showJoinSessionScreen("", "", "");
+    }
+
+    private void showJoinSessionScreen(String presetUser, String presetSessionId, String errorMessage) {
+        TextField userField = new TextField(presetUser);
+        TextField sessionField = new TextField(presetSessionId);
+        sessionField.setPromptText("Editor or viewer session ID...");
+        Label errorLabel = new Label(errorMessage);
+        errorLabel.setStyle("-fx-text-fill: #e74c3c;");
+        Button joinBtn = new Button("Join");
+        joinBtn.setOnAction(e -> {
+            String uname = userField.getText().trim();
+            String sid = sessionField.getText().trim();
+            if (uname.isEmpty() || sid.isEmpty()) { errorLabel.setText("Please fill in both fields."); return; }
+            boolean readOnly = sid.endsWith("-V");
+            lastJoinAttemptedId = sid;
+            initializeSession(uname, sid.replace("-E", "").replace("-V", ""), readOnly, false);
+        });
+        VBox root = new VBox(10, new Label("Join Session"), new Label("Username"), userField, new Label("Session ID"), sessionField, errorLabel, joinBtn);
+        root.setPadding(new Insets(30));
+        root.setAlignment(Pos.CENTER_LEFT);
+        primaryStage.setScene(new Scene(new VBox(root), 520, 360));
+    }
+
+    private void initializeSession(String uname, String baseSessionId, boolean readOnly, boolean isCreateFlow) {
+        username = uname;
+        sessionId = baseSessionId;
+        editorSessionId = baseSessionId + "-E";
+        viewerSessionId = baseSessionId + "-V";
+        readOnlyMode = readOnly;
+        userId = Math.abs(uname.hashCode()) % 10000;
+        controller = new CollaborativeDocumentController(userId);
+        currentBlockId = controller.createFirstBlock();
+        userColor = randomColor(userId);
+        activeUsers.put(username, userColor);
+
+        pendingJoinFlow = !isCreateFlow;
+        clientConnection = new Network.ClientConnection(controller,this,"ws://localhost:8080/ws", sessionId, readOnlyMode);
+        clientConnection.connect();
+        if (isCreateFlow) showEditorScreen();
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -175,7 +180,7 @@ public class EditorUI extends Application {
         primaryStage.setTitle("Editor — " + sessionId + " | " + username);
 
         // ── Top bar ──────────────────────────────────────────────────
-        Label sessionInfo = new Label("Session: " + sessionId);
+        Label sessionInfo = new Label("Editor Session: " + editorSessionId + " | Viewer Session: " + viewerSessionId + (readOnlyMode ? " (View-only mode)" : ""));
         statusLabel = new Label("● Connected");
 
         Region spacer = new Region();
@@ -276,7 +281,7 @@ public class EditorUI extends Application {
         );
 
         // ── Status bar ───────────────────────────────────────────────
-        Label statusBar = new Label("Connected as: " + username + "  |  Session: " + sessionId);
+        Label statusBar = new Label("Connected as: " + username + "  |  Editor ID: " + editorSessionId + "  |  Viewer ID: " + viewerSessionId);
         statusBar.setStyle("-fx-font-size: 11px; -fx-text-fill: #888; -fx-padding: 4 12 4 12;");
         HBox bottomBar = new HBox(statusBar);
         bottomBar.setStyle("-fx-background-color: #f1f1f1; -fx-border-color: #ddd; -fx-border-width: 1 0 0 0;");
@@ -300,7 +305,7 @@ public class EditorUI extends Application {
     // ─────────────────────────────────────────────────────────────────
 
     private void handleSpecialKeyPress(KeyEvent event) {
-        if (suppressListener || applyingRemote) return;
+        if (suppressListener || applyingRemote || readOnlyMode) return;
         if (controller == null) return;
         if (!ensureCurrentBlockAvailable()) return;
 
@@ -524,7 +529,7 @@ public class EditorUI extends Application {
     }
 
     private void handleTypedCharacter(KeyEvent event) {
-        if (suppressListener || applyingRemote) return;
+        if (suppressListener || applyingRemote || readOnlyMode) return;
         if (controller == null) return;
         if (!ensureCurrentBlockAvailable()) return;
 
@@ -882,6 +887,31 @@ public class EditorUI extends Application {
 
     public void onConnected() {
         Platform.runLater(() -> setStatus("● Connected", "#27ae60"));
+    }
+
+    public void onSessionAccepted() {
+        Platform.runLater(() -> {
+            if (pendingJoinFlow) {
+                pendingJoinFlow = false;
+                showEditorScreen();
+            }
+        });
+    }
+
+    public void onSessionJoinRejected(String reason) {
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Session not found");
+            alert.setHeaderText("Unable to join session");
+            alert.setContentText(reason == null || reason.isBlank()
+                    ? "There is no session with this ID."
+                    : reason);
+            alert.showAndWait();
+            if (clientConnection != null) clientConnection.disconnect();
+            activeUsers.clear();
+            String rememberedUser = username == null ? "" : username;
+            showJoinSessionScreen(rememberedUser, lastJoinAttemptedId, "Session doesn't exist. Please re-enter the ID.");
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────

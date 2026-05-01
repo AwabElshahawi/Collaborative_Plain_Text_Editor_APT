@@ -21,13 +21,19 @@ public class ClientConnection extends TextWebSocketHandler {
     private final CollaborativeDocumentController controller;
     private final ui.EditorUI editorUI;
     private final String serverUrl;
+    private final String sessionId;
+    private final boolean readOnlyMode;
 
     public ClientConnection(CollaborativeDocumentController controller,
                             ui.EditorUI editorUI,
-                            String serverUrl) {
+                            String serverUrl,
+                            String sessionId,
+                            boolean readOnlyMode) {
         this.controller = controller;
         this.editorUI   = editorUI;
         this.serverUrl  = serverUrl;
+        this.sessionId = sessionId;
+        this.readOnlyMode = readOnlyMode;
     }
 
     public void connect() {
@@ -87,6 +93,16 @@ public class ClientConnection extends TextWebSocketHandler {
                     editorUI.onUserLeft(username);
                 }
             }
+            else if ("SESSION".equals(wrapper.kind)) {
+                Map<?, ?> event = gson.fromJson(gson.toJson(wrapper.data), Map.class);
+                String action = String.valueOf(event.get("action"));
+                if ("REJECT".equals(action)) {
+                    String reason = String.valueOf(event.get("reason"));
+                    editorUI.onSessionJoinRejected(reason);
+                } else if ("ACCEPT".equals(action)) {
+                    editorUI.onSessionAccepted();
+                }
+            }
 
         } catch (Exception e) {
             System.err.println("Error parsing message: " + e.getMessage());
@@ -111,7 +127,7 @@ public class ClientConnection extends TextWebSocketHandler {
     public void sendOperation(Operation op, BlockId blockId) {
         if (session != null && session.isOpen()) {
             try {
-                MessageWrapper wrapper = new MessageWrapper("CHAR", op, blockId.toString());
+                MessageWrapper wrapper = new MessageWrapper("CHAR", op, blockId.toString(), sessionId);
                 String json = gson.toJson(wrapper);
                 session.sendMessage(new TextMessage(json));
             } catch (IOException e) {
@@ -126,7 +142,7 @@ public class ClientConnection extends TextWebSocketHandler {
     public void sendBlockOperation(BlockOperation op, BlockId blockId) {
         if (session != null && session.isOpen()) {
             try {
-                MessageWrapper wrapper = new MessageWrapper("BLOCK", op, blockId.toString());
+                MessageWrapper wrapper = new MessageWrapper("BLOCK", op, blockId.toString(), sessionId);
                 String json = gson.toJson(wrapper);
                 session.sendMessage(new TextMessage(json));
             } catch (IOException e) {
@@ -148,7 +164,9 @@ public class ClientConnection extends TextWebSocketHandler {
             payload.put("action", action);
             payload.put("username", editorUI.getUsername());
             payload.put("color", editorUI.getUserColor());
-            MessageWrapper wrapper = new MessageWrapper("PRESENCE", payload, "");
+            payload.put("sessionId", sessionId);
+            payload.put("mode", readOnlyMode ? "VIEWER" : "EDITOR");
+            MessageWrapper wrapper = new MessageWrapper("PRESENCE", payload, "", sessionId);
             session.sendMessage(new TextMessage(gson.toJson(wrapper)));
         } catch (IOException e) {
             System.err.println("Failed to send presence update: " + e.getMessage());
