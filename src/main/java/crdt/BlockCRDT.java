@@ -2,6 +2,8 @@ package crdt;
 import java.util.*;
 
 public class BlockCRDT {
+    public static final int MIN_BLOCK_LINES = 1;
+    public static final int MAX_BLOCK_LINES = 10;
     private final BlockNode root;
     private final Map<BlockId, BlockNode> blockMap;
 
@@ -34,6 +36,35 @@ public class BlockCRDT {
         blockMap.put(block.id, block);
         parent.children.add(block);
         parent.children.sort(Comparator.comparing(b -> b.id));
+    }
+
+    private int countLines(String text) {
+        if (text == null || text.isEmpty()) return 1;
+        return text.split("\n", -1).length;
+    }
+
+    private boolean isValidBlockText(String text) {
+        int lines = countLines(text);
+        return lines <= MAX_BLOCK_LINES;
+    }
+
+    private List<String> splitIntoMaxLineChunks(String text) {
+        List<String> chunks = new ArrayList<>();
+        String[] lines = (text == null ? "" : text).split("\n", -1);
+        StringBuilder current = new StringBuilder();
+        int currentLines = 0;
+        for (int i = 0; i < lines.length; i++) {
+            if (currentLines == MAX_BLOCK_LINES) {
+                chunks.add(current.toString());
+                current = new StringBuilder();
+                currentLines = 0;
+            }
+            if (currentLines > 0) current.append("\n");
+            current.append(lines[i]);
+            currentLines++;
+        }
+        if (chunks.isEmpty() || currentLines > 0) chunks.add(current.toString());
+        return chunks;
     }
 
     public void deleteBlock(BlockOperation op) {
@@ -107,6 +138,7 @@ public class BlockCRDT {
         return block.CharacterCRDT.getText();
     }
     public BlockId pasteBlock(BlockId parentBlockId, String text, int userId, String blockClockValue) {
+        List<String> chunks = splitIntoMaxLineChunks(text);
         BlockId newBlockId = new BlockId(userId, blockClockValue);
 
         BlockOperation blockOp = BlockOperation.insert(newBlockId, parentBlockId);
@@ -119,7 +151,18 @@ public class BlockCRDT {
         }
 
         LocalClock charClock = new LocalClock(userId);
-        newBlock.CharacterCRDT.insertText(text, charClock);
+        newBlock.CharacterCRDT.insertText(chunks.get(0), charClock);
+
+        BlockId prevId = newBlockId;
+        for (int i = 1; i < chunks.size(); i++) {
+            BlockId extraId = new BlockId(userId, blockClockValue + ":chunk:" + i);
+            apply(BlockOperation.insert(extraId, prevId));
+            BlockNode extra = blockMap.get(extraId);
+            if (extra != null) {
+                extra.CharacterCRDT.insertText(chunks.get(i), new LocalClock(userId));
+                prevId = extraId;
+            }
+        }
 
         return newBlockId;
     }
@@ -140,6 +183,7 @@ public class BlockCRDT {
 
         String left = text.substring(0, splitIndex);
         String right = text.substring(splitIndex);
+        List<String> rightChunks = splitIntoMaxLineChunks(right);
 
         block.CharacterCRDT.tombstoneAll();
 
@@ -158,7 +202,18 @@ public class BlockCRDT {
         }
 
         LocalClock rightClock = new LocalClock(userId);
-        newBlock.CharacterCRDT.insertText(right, rightClock);
+        newBlock.CharacterCRDT.insertText(rightChunks.get(0), rightClock);
+
+        BlockId prevId = newBlockId;
+        for (int i = 1; i < rightChunks.size(); i++) {
+            BlockId extraId = new BlockId(userId, newBlockClock + ":chunk:" + i);
+            apply(BlockOperation.insert(extraId, prevId));
+            BlockNode extra = blockMap.get(extraId);
+            if (extra != null) {
+                extra.CharacterCRDT.insertText(rightChunks.get(i), new LocalClock(userId));
+                prevId = extraId;
+            }
+        }
 
         return newBlockId;
     }
@@ -172,14 +227,32 @@ public class BlockCRDT {
         }
 
         String mergedText = first.CharacterCRDT.getText() + second.CharacterCRDT.getText();
+        List<String> chunks = splitIntoMaxLineChunks(mergedText);
 
         first.CharacterCRDT.tombstoneAll();
 
         int startMerge = first.CharacterCRDT.getMaxCounterForUser(userId);
         LocalClock mergeClock = new LocalClock(userId, startMerge);
-        first.CharacterCRDT.insertText(mergedText, mergeClock);
+        first.CharacterCRDT.insertText(chunks.get(0), mergeClock);
 
-        second.deleted = true;
+        second.CharacterCRDT.tombstoneAll();
+        if (chunks.size() > 1) {
+            second.CharacterCRDT.insertText(chunks.get(1), new LocalClock(userId));
+            second.deleted = false;
+        } else {
+            second.deleted = true;
+        }
+
+        BlockId prevId = secondBlockId;
+        for (int i = 2; i < chunks.size(); i++) {
+            BlockId extraId = new BlockId(userId, secondBlockId.clock + ":chunk:" + i);
+            apply(BlockOperation.insert(extraId, prevId));
+            BlockNode extra = blockMap.get(extraId);
+            if (extra != null) {
+                extra.CharacterCRDT.insertText(chunks.get(i), new LocalClock(userId));
+                prevId = extraId;
+            }
+        }
     }
 
 }

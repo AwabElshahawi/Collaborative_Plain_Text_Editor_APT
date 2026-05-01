@@ -95,12 +95,23 @@ public class CollaborativeDocumentController {
         return visible.get(visibleIndex - 1);
     }
 
+    private int lineCount(String text) {
+        if (text == null || text.isEmpty()) return 1;
+        return text.split("\n", -1).length;
+    }
+
     // ─────────────────────────────────────────────────────────────────
     //  CHARACTER OPERATIONS
     // ─────────────────────────────────────────────────────────────────
 
     public Operation localInsertChar(BlockId blockId, int visibleIndex, char value, boolean bold, boolean italic) {
         BlockNode block = requireBlock(blockId);
+        String currentText = block.CharacterCRDT.getText();
+        String nextText = currentText.substring(0, Math.max(0, Math.min(visibleIndex, currentText.length())))
+                + value
+                + currentText.substring(Math.max(0, Math.min(visibleIndex, currentText.length())));
+        int nextLines = lineCount(nextText);
+        if (nextLines > BlockCRDT.MAX_BLOCK_LINES) return null;
 
         CharacterId parentId = resolveInsertParentId(blockId, visibleIndex);
         CharacterId newId    = localClock.next();
@@ -123,7 +134,9 @@ public class CollaborativeDocumentController {
         CharacterNode target = resolveDeleteTarget(blockId, visibleIndex);
 
         if (target == null) return null;
-
+        String currentText = block.CharacterCRDT.getText();
+        int idx = Math.max(0, Math.min(visibleIndex - 1, currentText.length() - 1));
+        String nextText = currentText.substring(0, idx) + currentText.substring(idx + 1);
         Operation op = Operation.delete(target.id);
         block.CharacterCRDT.apply(op);
 
