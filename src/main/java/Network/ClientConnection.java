@@ -9,6 +9,8 @@ import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 
@@ -54,6 +56,7 @@ public class ClientConnection extends TextWebSocketHandler {
         this.session = session;
         System.out.println("Connected to server via Spring WebSocket");
         editorUI.onConnected();
+        sendPresence("JOIN");
     }
 
     @Override
@@ -71,6 +74,18 @@ public class ClientConnection extends TextWebSocketHandler {
             } else if ("BLOCK".equals(wrapper.kind)) {
                 BlockOperation op = gson.fromJson(gson.toJson(wrapper.data), BlockOperation.class);
                 editorUI.onRemoteBlockOperationReceived(op);
+            }
+            else if ("PRESENCE".equals(wrapper.kind)) {
+                Map<?, ?> event = gson.fromJson(gson.toJson(wrapper.data), Map.class);
+                String action = String.valueOf(event.get("action"));
+                String username = String.valueOf(event.get("username"));
+                String color = String.valueOf(event.get("color"));
+
+                if ("JOIN".equals(action)) {
+                    editorUI.onUserJoined(username, color);
+                } else if ("LEAVE".equals(action)) {
+                    editorUI.onUserLeft(username);
+                }
             }
 
         } catch (Exception e) {
@@ -125,5 +140,18 @@ public class ClientConnection extends TextWebSocketHandler {
 
     public boolean isConnected() {
         return session != null && session.isOpen();
+    }
+    private void sendPresence(String action) {
+        if (session == null || !session.isOpen()) return;
+        try {
+            Map<String, String> payload = new HashMap<>();
+            payload.put("action", action);
+            payload.put("username", editorUI.getUsername());
+            payload.put("color", editorUI.getUserColor());
+            MessageWrapper wrapper = new MessageWrapper("PRESENCE", payload, "");
+            session.sendMessage(new TextMessage(gson.toJson(wrapper)));
+        } catch (IOException e) {
+            System.err.println("Failed to send presence update: " + e.getMessage());
+        }
     }
 }

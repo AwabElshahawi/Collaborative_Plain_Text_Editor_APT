@@ -4,17 +4,21 @@ import com.google.gson.Gson;
 import crdt.*;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.gson.JsonElement;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
 
 @Component
 public class DocumentServer extends TextWebSocketHandler {
     private static final Set<WebSocketSession> openSessions = Collections.synchronizedSet(new HashSet<>());
-
+    private static final Map<String, JsonObject> presenceBySessionId = Collections.synchronizedMap(new HashMap<>());
+    private final Gson gson = new Gson();
     @Override
     public void afterConnectionEstablished(WebSocketSession session){
         openSessions.add(session);
@@ -24,6 +28,14 @@ public class DocumentServer extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status){
+        JsonObject departed = presenceBySessionId.remove(session.getId());
+        if (departed != null) {
+            JsonObject leavePayload = new JsonObject();
+            leavePayload.addProperty("action", "LEAVE");
+            leavePayload.addProperty("username", departed.get("username").getAsString());
+            leavePayload.addProperty("color", departed.get("color").getAsString());
+            broadcast(new MessageWrapper("PRESENCE", leavePayload, ""), session.getId());
+        }
         openSessions.remove(session);
         System.out.println("Session closed: " + session.getId());
         System.out.println("Total Clients: " + openSessions.size());
@@ -40,20 +52,49 @@ public class DocumentServer extends TextWebSocketHandler {
             String msg = message.getPayload();
             JsonObject wrapper = JsonParser.parseString(msg).getAsJsonObject();
             String kind = wrapper.get("kind").getAsString();
-            Object data = wrapper.get("data");
+            JsonElement data = wrapper.get("data");
             System.out.println("Received Message[ " + kind + " ]: " + data);
 
-            synchronized (openSessions){
-                for  (WebSocketSession s : openSessions){
-                    if((!s.getId().equals(session.getId())) && s.isOpen()){
-                        s.sendMessage(new TextMessage(msg));
+            if ("PRESENCE".equals(kind)) {
+                JsonObject presence = data.getAsJsonObject();
+                String action = presence.get("action").getAsString();
+                if ("JOIN".equals(action)) {
+                    presenceBySessionId.put(session.getId(), presence);
+
+                    synchronized (presenceBySessionId) {
+                        for (Map.Entry<String, JsonObject> entry : presenceBySessionId.entrySet()) {
+                            if (entry.getKey().equals(session.getId())) continue;
+                            JsonObject existing = entry.getValue();
+                            JsonObject existingJoin = new JsonObject();
+                            existingJoin.addProperty("action", "JOIN");
+                            existingJoin.addProperty("username", existing.get("username").getAsString());
+                            existingJoin.addProperty("color", existing.get("color").getAsString());
+                            session.sendMessage(new TextMessage(gson.toJson(new MessageWrapper("PRESENCE", existingJoin, ""))));
+                        }
                     }
                 }
             }
+
+            broadcastRaw(msg, session.getId());
         }
         catch (Exception e){
             System.err.println("Error Handling Message: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+    private void broadcast(MessageWrapper wrapper, String senderSessionId) {
+        broadcastRaw(gson.toJson(wrapper), senderSessionId);
+    }
+
+    private void broadcastRaw(String payload, String senderSessionId) {
+        synchronized (openSessions){
+            for  (WebSocketSession s : openSessions){
+                if((!s.getId().equals(senderSessionId)) && s.isOpen()){
+                    try {
+                        s.sendMessage(new TextMessage(payload));
+                    } catch (Exception ignored) {}
+                }
+            }
         }
     }
 }
