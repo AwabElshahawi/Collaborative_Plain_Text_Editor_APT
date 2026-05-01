@@ -123,7 +123,9 @@ public class CollaborativeDocumentController {
         CharacterNode target = resolveDeleteTarget(blockId, visibleIndex);
 
         if (target == null) return null;
-
+        String currentText = block.CharacterCRDT.getText();
+        int idx = Math.max(0, Math.min(visibleIndex - 1, currentText.length() - 1));
+        String nextText = currentText.substring(0, idx) + currentText.substring(idx + 1);
         Operation op = Operation.delete(target.id);
         block.CharacterCRDT.apply(op);
 
