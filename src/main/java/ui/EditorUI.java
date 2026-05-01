@@ -28,7 +28,6 @@ public class EditorUI extends Application {
     // ── Session info ─────────────────────────────────────────────────
     private String username;
     private String sessionId;
-    private String userColor;
     private int userId;
 
     // ── UI state ─────────────────────────────────────────────────────
@@ -132,8 +131,7 @@ public class EditorUI extends Application {
             userId         = Math.abs(uname.hashCode()) % 10000;
             controller     = new CollaborativeDocumentController(userId);
             currentBlockId = controller.createFirstBlock();
-            userColor = randomColor(userId);
-            activeUsers.put(username, userColor);
+            activeUsers.put(username, randomColor(userId));
 
             clientConnection = new Network.ClientConnection(controller,this,"ws://localhost:8080/ws");
             clientConnection.connect();
@@ -832,9 +830,17 @@ public class EditorUI extends Application {
         Platform.runLater(() -> {
             applyingRemote = true;
             controller.applyRemoteCharOperation(blockId, op);
-            int size = controller.getDocument().findBlock(currentBlockId)
-                    .CharacterCRDT.getVisibleCharacters().size();
-            caretPos = Math.min(caretPos, size);
+
+            BlockNode caretBlock = controller.getDocument().findBlock(currentBlockId);
+            if (caretBlock == null || caretBlock.deleted) {
+                currentBlockId = blockId;
+                caretPos = controller.getDocument().findBlock(currentBlockId)
+                        .CharacterCRDT.getVisibleCharacters().size();
+            } else {
+                int size = caretBlock.CharacterCRDT.getVisibleCharacters().size();
+                caretPos = Math.min(caretPos, size);
+            }
+
             refreshEditor(caretPos);
             applyingRemote = false;
         });
@@ -882,7 +888,6 @@ public class EditorUI extends Application {
 
     public String  getSessionId()      { return sessionId; }
     public String  getUsername()       { return username; }
-    public String  getUserColor()      { return userColor; }
     public int     getUserId()         { return userId; }
     public BlockId getCurrentBlockId() { return currentBlockId; }
     public CollaborativeDocumentController getController() { return controller; }
