@@ -99,6 +99,8 @@ public class ClientConnection extends TextWebSocketHandler {
                 if ("REJECT".equals(action)) {
                     String reason = String.valueOf(event.get("reason"));
                     editorUI.onSessionJoinRejected(reason);
+                } else if ("ACCEPT".equals(action)) {
+                    editorUI.onSessionAccepted();
                 }
             }
 

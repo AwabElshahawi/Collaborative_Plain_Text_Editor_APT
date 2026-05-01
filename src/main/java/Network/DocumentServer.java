@@ -72,6 +72,9 @@ public class DocumentServer extends TextWebSocketHandler {
                         session.sendMessage(new TextMessage(gson.toJson(new MessageWrapper("SESSION", reject, "", targetSessionId))));
                         return;
                     }
+                    JsonObject accept = new JsonObject();
+                    accept.addProperty("action", "ACCEPT");
+                    session.sendMessage(new TextMessage(gson.toJson(new MessageWrapper("SESSION", accept, "", targetSessionId))));
 
                     presenceBySessionId.put(session.getId(), presence);
 

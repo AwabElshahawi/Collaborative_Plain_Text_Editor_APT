@@ -63,6 +63,8 @@ public class EditorUI extends Application {
     // ── Flags ─────────────────────────────────────────────────────────
     private boolean suppressListener = false;
     private boolean applyingRemote   = false;
+    private boolean pendingJoinFlow  = false;
+    private String lastJoinAttemptedId = "";
 
     // Server Connection
     private Network.ClientConnection clientConnection;
@@ -119,7 +121,7 @@ public class EditorUI extends Application {
         createBtn.setOnAction(e -> {
             String uname = userField.getText().trim();
             if (uname.isEmpty()) { errorLabel.setText("Please enter your name."); return; }
-            initializeSession(uname, UUID.randomUUID().toString().substring(0, 8), false);
+            initializeSession(uname, UUID.randomUUID().toString().substring(0, 8), false, true);
         });
         VBox root = new VBox(10, new Label("Create Session"), new Label("Username"), userField, errorLabel, createBtn);
         root.setPadding(new Insets(30));
@@ -128,17 +130,23 @@ public class EditorUI extends Application {
     }
 
     private void showJoinSessionScreen() {
-        TextField userField = new TextField();
-        TextField sessionField = new TextField();
+        showJoinSessionScreen("", "", "");
+    }
+
+    private void showJoinSessionScreen(String presetUser, String presetSessionId, String errorMessage) {
+        TextField userField = new TextField(presetUser);
+        TextField sessionField = new TextField(presetSessionId);
         sessionField.setPromptText("Editor or viewer session ID...");
-        Label errorLabel = new Label();
+        Label errorLabel = new Label(errorMessage);
+        errorLabel.setStyle("-fx-text-fill: #e74c3c;");
         Button joinBtn = new Button("Join");
         joinBtn.setOnAction(e -> {
             String uname = userField.getText().trim();
             String sid = sessionField.getText().trim();
             if (uname.isEmpty() || sid.isEmpty()) { errorLabel.setText("Please fill in both fields."); return; }
             boolean readOnly = sid.endsWith("-V");
-            initializeSession(uname, sid.replace("-E", "").replace("-V", ""), readOnly);
+            lastJoinAttemptedId = sid;
+            initializeSession(uname, sid.replace("-E", "").replace("-V", ""), readOnly, false);
         });
         VBox root = new VBox(10, new Label("Join Session"), new Label("Username"), userField, new Label("Session ID"), sessionField, errorLabel, joinBtn);
         root.setPadding(new Insets(30));
@@ -146,7 +154,7 @@ public class EditorUI extends Application {
         primaryStage.setScene(new Scene(new VBox(root), 520, 360));
     }
 
-    private void initializeSession(String uname, String baseSessionId, boolean readOnly) {
+    private void initializeSession(String uname, String baseSessionId, boolean readOnly, boolean isCreateFlow) {
         username = uname;
         sessionId = baseSessionId;
         editorSessionId = baseSessionId + "-E";
@@ -158,9 +166,10 @@ public class EditorUI extends Application {
         userColor = randomColor(userId);
         activeUsers.put(username, userColor);
 
+        pendingJoinFlow = !isCreateFlow;
         clientConnection = new Network.ClientConnection(controller,this,"ws://localhost:8080/ws", sessionId, readOnlyMode);
         clientConnection.connect();
-        showEditorScreen();
+        if (isCreateFlow) showEditorScreen();
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -880,6 +889,15 @@ public class EditorUI extends Application {
         Platform.runLater(() -> setStatus("● Connected", "#27ae60"));
     }
 
+    public void onSessionAccepted() {
+        Platform.runLater(() -> {
+            if (pendingJoinFlow) {
+                pendingJoinFlow = false;
+                showEditorScreen();
+            }
+        });
+    }
+
     public void onSessionJoinRejected(String reason) {
         Platform.runLater(() -> {
             Alert alert = new Alert(Alert.AlertType.ERROR);
@@ -891,7 +909,8 @@ public class EditorUI extends Application {
             alert.showAndWait();
             if (clientConnection != null) clientConnection.disconnect();
             activeUsers.clear();
-            showJoinSessionScreen();
+            String rememberedUser = username == null ? "" : username;
+            showJoinSessionScreen(rememberedUser, lastJoinAttemptedId, "Session doesn't exist. Please re-enter the ID.");
         });
     }
 
