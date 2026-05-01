@@ -22,15 +22,18 @@ public class ClientConnection extends TextWebSocketHandler {
     private final ui.EditorUI editorUI;
     private final String serverUrl;
     private final String sessionId;
+    private final boolean readOnlyMode;
 
     public ClientConnection(CollaborativeDocumentController controller,
                             ui.EditorUI editorUI,
                             String serverUrl,
-                            String sessionId) {
+                            String sessionId,
+                            boolean readOnlyMode) {
         this.controller = controller;
         this.editorUI   = editorUI;
         this.serverUrl  = serverUrl;
         this.sessionId = sessionId;
+        this.readOnlyMode = readOnlyMode;
     }
 
     public void connect() {
@@ -88,6 +91,14 @@ public class ClientConnection extends TextWebSocketHandler {
                     editorUI.onUserJoined(username, color);
                 } else if ("LEAVE".equals(action)) {
                     editorUI.onUserLeft(username);
+                }
+            }
+            else if ("SESSION".equals(wrapper.kind)) {
+                Map<?, ?> event = gson.fromJson(gson.toJson(wrapper.data), Map.class);
+                String action = String.valueOf(event.get("action"));
+                if ("REJECT".equals(action)) {
+                    String reason = String.valueOf(event.get("reason"));
+                    editorUI.onSessionJoinRejected(reason);
                 }
             }
 
@@ -152,6 +163,7 @@ public class ClientConnection extends TextWebSocketHandler {
             payload.put("username", editorUI.getUsername());
             payload.put("color", editorUI.getUserColor());
             payload.put("sessionId", sessionId);
+            payload.put("mode", readOnlyMode ? "VIEWER" : "EDITOR");
             MessageWrapper wrapper = new MessageWrapper("PRESENCE", payload, "", sessionId);
             session.sendMessage(new TextMessage(gson.toJson(wrapper)));
         } catch (IOException e) {

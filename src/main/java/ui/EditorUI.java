@@ -158,8 +158,7 @@ public class EditorUI extends Application {
         userColor = randomColor(userId);
         activeUsers.put(username, userColor);
 
-        String targetSessionId = readOnlyMode ? viewerSessionId : editorSessionId;
-        clientConnection = new Network.ClientConnection(controller,this,"ws://localhost:8080/ws", targetSessionId);
+        clientConnection = new Network.ClientConnection(controller,this,"ws://localhost:8080/ws", sessionId, readOnlyMode);
         clientConnection.connect();
         showEditorScreen();
     }
@@ -879,6 +878,21 @@ public class EditorUI extends Application {
 
     public void onConnected() {
         Platform.runLater(() -> setStatus("● Connected", "#27ae60"));
+    }
+
+    public void onSessionJoinRejected(String reason) {
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Session not found");
+            alert.setHeaderText("Unable to join session");
+            alert.setContentText(reason == null || reason.isBlank()
+                    ? "There is no session with this ID."
+                    : reason);
+            alert.showAndWait();
+            if (clientConnection != null) clientConnection.disconnect();
+            activeUsers.clear();
+            showJoinSessionScreen();
+        });
     }
 
     // ─────────────────────────────────────────────────────────────────
