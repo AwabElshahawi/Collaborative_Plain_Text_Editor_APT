@@ -34,7 +34,8 @@ public class DocumentServer extends TextWebSocketHandler {
             leavePayload.addProperty("action", "LEAVE");
             leavePayload.addProperty("username", departed.get("username").getAsString());
             leavePayload.addProperty("color", departed.get("color").getAsString());
-            broadcast(new MessageWrapper("PRESENCE", leavePayload, ""), session.getId());
+            String targetSessionId = departed.has("sessionId") ? departed.get("sessionId").getAsString() : "";
+            broadcast(new MessageWrapper("PRESENCE", leavePayload, "", targetSessionId), session.getId(), targetSessionId);
         }
         openSessions.remove(session);
         System.out.println("Session closed: " + session.getId());
@@ -69,27 +70,34 @@ public class DocumentServer extends TextWebSocketHandler {
                             existingJoin.addProperty("action", "JOIN");
                             existingJoin.addProperty("username", existing.get("username").getAsString());
                             existingJoin.addProperty("color", existing.get("color").getAsString());
-                            session.sendMessage(new TextMessage(gson.toJson(new MessageWrapper("PRESENCE", existingJoin, ""))));
+                            String targetSessionId = existing.has("sessionId") ? existing.get("sessionId").getAsString() : "";
+                            if (!targetSessionId.equals(presence.get("sessionId").getAsString())) continue;
+                            session.sendMessage(new TextMessage(gson.toJson(new MessageWrapper("PRESENCE", existingJoin, "", targetSessionId))));
                         }
                     }
                 }
             }
 
-            broadcastRaw(msg, session.getId());
+            String targetSessionId = wrapper.has("sessionId") ? wrapper.get("sessionId").getAsString() : "";
+            broadcastRaw(msg, session.getId(), targetSessionId);
         }
         catch (Exception e){
             System.err.println("Error Handling Message: " + e.getMessage());
             e.printStackTrace();
         }
     }
-    private void broadcast(MessageWrapper wrapper, String senderSessionId) {
-        broadcastRaw(gson.toJson(wrapper), senderSessionId);
+    private void broadcast(MessageWrapper wrapper, String senderSessionId, String targetSessionId) {
+        broadcastRaw(gson.toJson(wrapper), senderSessionId, targetSessionId);
     }
 
-    private void broadcastRaw(String payload, String senderSessionId) {
+    private void broadcastRaw(String payload, String senderSessionId, String targetSessionId) {
         synchronized (openSessions){
             for  (WebSocketSession s : openSessions){
                 if((!s.getId().equals(senderSessionId)) && s.isOpen()){
+                    JsonObject presence = presenceBySessionId.get(s.getId());
+                    if (targetSessionId != null && !targetSessionId.isEmpty()) {
+                        if (presence == null || !targetSessionId.equals(presence.get("sessionId").getAsString())) continue;
+                    }
                     try {
                         s.sendMessage(new TextMessage(payload));
                     } catch (Exception ignored) {}
