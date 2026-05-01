@@ -151,21 +151,11 @@ public class CollaborativeDocumentController {
 
     public void applyRemoteCharOperation(BlockId blockId, Operation op) {
         BlockNode block = document.findBlock(blockId);
-
-        if (block == null) {
-            // Out-of-order delivery: char op may arrive before block op.
+        if (block == null || block.deleted) {
+            // Be resilient to out-of-order delivery / older clients:
+            // ensure the target block exists before applying remote char ops.
             document.apply(BlockOperation.insert(blockId, document.getRootId()));
-            block = document.findBlock(blockId);
-        }
-
-        if (block == null) {
-            // If we still cannot resolve the block, skip this op safely.
-            return;
-        }
-
-        if (block.deleted) {
-            // Remote typing in this block means it is active again.
-            block.deleted = false;
+            block = requireBlock(blockId);
         }
 
         applyingRemote = true;
