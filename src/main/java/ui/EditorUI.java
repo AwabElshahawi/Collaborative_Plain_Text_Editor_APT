@@ -828,9 +828,17 @@ public class EditorUI extends Application {
         Platform.runLater(() -> {
             applyingRemote = true;
             controller.applyRemoteCharOperation(blockId, op);
-            int size = controller.getDocument().findBlock(currentBlockId)
-                    .CharacterCRDT.getVisibleCharacters().size();
-            caretPos = Math.min(caretPos, size);
+
+            BlockNode caretBlock = controller.getDocument().findBlock(currentBlockId);
+            if (caretBlock == null || caretBlock.deleted) {
+                currentBlockId = blockId;
+                caretPos = controller.getDocument().findBlock(currentBlockId)
+                        .CharacterCRDT.getVisibleCharacters().size();
+            } else {
+                int size = caretBlock.CharacterCRDT.getVisibleCharacters().size();
+                caretPos = Math.min(caretPos, size);
+            }
+
             refreshEditor(caretPos);
             applyingRemote = false;
         });
