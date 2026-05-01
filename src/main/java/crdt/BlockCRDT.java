@@ -2,6 +2,8 @@ package crdt;
 import java.util.*;
 
 public class BlockCRDT {
+    public static final int MIN_BLOCK_LINES = 1;
+    public static final int MAX_BLOCK_LINES = 10;
     private final BlockNode root;
     private final Map<BlockId, BlockNode> blockMap;
 
@@ -34,6 +36,16 @@ public class BlockCRDT {
         blockMap.put(block.id, block);
         parent.children.add(block);
         parent.children.sort(Comparator.comparing(b -> b.id));
+    }
+
+    private int countLines(String text) {
+        if (text == null || text.isEmpty()) return 1;
+        return text.split("\n", -1).length;
+    }
+
+    private boolean isValidBlockText(String text) {
+        int lines = countLines(text);
+        return lines <= MAX_BLOCK_LINES;
     }
 
     public void deleteBlock(BlockOperation op) {
@@ -107,6 +119,10 @@ public class BlockCRDT {
         return block.CharacterCRDT.getText();
     }
     public BlockId pasteBlock(BlockId parentBlockId, String text, int userId, String blockClockValue) {
+        if (!isValidBlockText(text)) {
+            System.out.println("Invalid block size: block cannot exceed 10 lines");
+            return null;
+        }
         BlockId newBlockId = new BlockId(userId, blockClockValue);
 
         BlockOperation blockOp = BlockOperation.insert(newBlockId, parentBlockId);
@@ -140,6 +156,10 @@ public class BlockCRDT {
 
         String left = text.substring(0, splitIndex);
         String right = text.substring(splitIndex);
+        if (!isValidBlockText(left) || !isValidBlockText(right)) {
+            System.out.println("Split rejected: each block cannot exceed 10 lines");
+            return null;
+        }
 
         block.CharacterCRDT.tombstoneAll();
 
@@ -172,6 +192,10 @@ public class BlockCRDT {
         }
 
         String mergedText = first.CharacterCRDT.getText() + second.CharacterCRDT.getText();
+        if (!isValidBlockText(mergedText)) {
+            System.out.println("Merge rejected: resulting block cannot exceed 10 lines");
+            return;
+        }
 
         first.CharacterCRDT.tombstoneAll();
 
