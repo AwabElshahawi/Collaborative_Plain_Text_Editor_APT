@@ -167,7 +167,7 @@ public class EditorUI extends Application {
         activeUsers.put(username, userColor);
 
         pendingJoinFlow = !isCreateFlow;
-        clientConnection = new Network.ClientConnection(controller,this,"ws://localhost:8080/ws", sessionId, readOnlyMode);
+        clientConnection = new Network.ClientConnection(controller,this,"ws://localhost:8080/ws", sessionId, readOnlyMode, isCreateFlow);
         clientConnection.connect();
         if (isCreateFlow) showEditorScreen();
     }
@@ -910,7 +910,7 @@ public class EditorUI extends Application {
             if (clientConnection != null) clientConnection.disconnect();
             activeUsers.clear();
             String rememberedUser = username == null ? "" : username;
-            showJoinSessionScreen(rememberedUser, lastJoinAttemptedId, "Session doesn't exist. Please re-enter the ID.");
+            showJoinSessionScreen(rememberedUser, lastJoinAttemptedId, "Wrong session ID. Please re-enter a valid copied ID.");
         });
     }
 

@@ -62,13 +62,13 @@ public class DocumentServer extends TextWebSocketHandler {
                 String action = presence.get("action").getAsString();
                 if ("JOIN".equals(action)) {
                     String targetSessionId = presence.has("sessionId") ? presence.get("sessionId").getAsString() : "";
-                    String mode = presence.has("mode") ? presence.get("mode").getAsString() : "EDITOR";
-                    if ("EDITOR".equals(mode)) {
+                    String joinType = presence.has("joinType") ? presence.get("joinType").getAsString() : "JOIN";
+                    if ("CREATE".equals(joinType)) {
                         knownDocumentSessions.add(targetSessionId);
                     } else if (!knownDocumentSessions.contains(targetSessionId)) {
                         JsonObject reject = new JsonObject();
                         reject.addProperty("action", "REJECT");
-                        reject.addProperty("reason", "There is no session with this ID.");
+                        reject.addProperty("reason", "Wrong session ID. Please paste a valid session ID.");
                         session.sendMessage(new TextMessage(gson.toJson(new MessageWrapper("SESSION", reject, "", targetSessionId))));
                         return;
                     }

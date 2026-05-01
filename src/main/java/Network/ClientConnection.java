@@ -23,17 +23,20 @@ public class ClientConnection extends TextWebSocketHandler {
     private final String serverUrl;
     private final String sessionId;
     private final boolean readOnlyMode;
+    private final boolean createFlow;
 
     public ClientConnection(CollaborativeDocumentController controller,
                             ui.EditorUI editorUI,
                             String serverUrl,
                             String sessionId,
-                            boolean readOnlyMode) {
+                            boolean readOnlyMode,
+                            boolean createFlow) {
         this.controller = controller;
         this.editorUI   = editorUI;
         this.serverUrl  = serverUrl;
         this.sessionId = sessionId;
         this.readOnlyMode = readOnlyMode;
+        this.createFlow = createFlow;
     }
 
     public void connect() {
@@ -166,6 +169,7 @@ public class ClientConnection extends TextWebSocketHandler {
             payload.put("color", editorUI.getUserColor());
             payload.put("sessionId", sessionId);
             payload.put("mode", readOnlyMode ? "VIEWER" : "EDITOR");
+            payload.put("joinType", createFlow ? "CREATE" : "JOIN");
             MessageWrapper wrapper = new MessageWrapper("PRESENCE", payload, "", sessionId);
             session.sendMessage(new TextMessage(gson.toJson(wrapper)));
         } catch (IOException e) {
