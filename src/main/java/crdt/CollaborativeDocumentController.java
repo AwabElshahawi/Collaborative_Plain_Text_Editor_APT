@@ -168,12 +168,8 @@ public class CollaborativeDocumentController {
             block.deleted = false;
         }
         applyingRemote = true;
-        try {
-            block.CharacterCRDT.apply(op);
-        } finally {
-            applyingRemote = false;
-        }
-        // Remote ops are NOT recorded in undo stack
+        block.CharacterCRDT.apply(op);
+        applyingRemote = false;
     }
 
     // ─────────────────────────────────────────────────────────────────
