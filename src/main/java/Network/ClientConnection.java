@@ -21,13 +21,16 @@ public class ClientConnection extends TextWebSocketHandler {
     private final CollaborativeDocumentController controller;
     private final ui.EditorUI editorUI;
     private final String serverUrl;
+    private final String sessionId;
 
     public ClientConnection(CollaborativeDocumentController controller,
                             ui.EditorUI editorUI,
-                            String serverUrl) {
+                            String serverUrl,
+                            String sessionId) {
         this.controller = controller;
         this.editorUI   = editorUI;
         this.serverUrl  = serverUrl;
+        this.sessionId = sessionId;
     }
 
     public void connect() {
@@ -111,7 +114,7 @@ public class ClientConnection extends TextWebSocketHandler {
     public void sendOperation(Operation op, BlockId blockId) {
         if (session != null && session.isOpen()) {
             try {
-                MessageWrapper wrapper = new MessageWrapper("CHAR", op, blockId.toString());
+                MessageWrapper wrapper = new MessageWrapper("CHAR", op, blockId.toString(), sessionId);
                 String json = gson.toJson(wrapper);
                 session.sendMessage(new TextMessage(json));
             } catch (IOException e) {
@@ -126,7 +129,7 @@ public class ClientConnection extends TextWebSocketHandler {
     public void sendBlockOperation(BlockOperation op, BlockId blockId) {
         if (session != null && session.isOpen()) {
             try {
-                MessageWrapper wrapper = new MessageWrapper("BLOCK", op, blockId.toString());
+                MessageWrapper wrapper = new MessageWrapper("BLOCK", op, blockId.toString(), sessionId);
                 String json = gson.toJson(wrapper);
                 session.sendMessage(new TextMessage(json));
             } catch (IOException e) {
@@ -148,7 +151,8 @@ public class ClientConnection extends TextWebSocketHandler {
             payload.put("action", action);
             payload.put("username", editorUI.getUsername());
             payload.put("color", editorUI.getUserColor());
-            MessageWrapper wrapper = new MessageWrapper("PRESENCE", payload, "");
+            payload.put("sessionId", sessionId);
+            MessageWrapper wrapper = new MessageWrapper("PRESENCE", payload, "", sessionId);
             session.sendMessage(new TextMessage(gson.toJson(wrapper)));
         } catch (IOException e) {
             System.err.println("Failed to send presence update: " + e.getMessage());
