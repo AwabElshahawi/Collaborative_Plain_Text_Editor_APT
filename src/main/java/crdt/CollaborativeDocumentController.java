@@ -150,7 +150,24 @@ public class CollaborativeDocumentController {
     }
 
     public void applyRemoteCharOperation(BlockId blockId, Operation op) {
-        BlockNode block = requireBlock(blockId);
+        BlockNode block = document.findBlock(blockId);
+
+        if (block == null) {
+            // Out-of-order delivery: char op may arrive before block op.
+            document.apply(BlockOperation.insert(blockId, document.getRootId()));
+            block = document.findBlock(blockId);
+        }
+
+        if (block == null) {
+            // If we still cannot resolve the block, skip this op safely.
+            return;
+        }
+
+        if (block.deleted) {
+            // Remote typing in this block means it is active again.
+            block.deleted = false;
+        }
+
         applyingRemote = true;
         block.CharacterCRDT.apply(op);
         applyingRemote = false;
@@ -198,7 +215,9 @@ public class CollaborativeDocumentController {
     }
 
     public BlockId createFirstBlock() {
-        BlockId blockId = new BlockId(localUserId, "00:01");
+        // Shared deterministic first block so every client can apply remote ops
+        // to the same initial block before any additional block operations arrive.
+        BlockId blockId = new BlockId(0, "00:01");
         BlockOperation op = BlockOperation.insert(blockId, document.getRootId());
         document.apply(op);
         return blockId;
