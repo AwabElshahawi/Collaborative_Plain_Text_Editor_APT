@@ -223,11 +223,15 @@ public class EditorUI extends Application {
         importBtn.setStyle(toolbarBtnStyle(false));
         importBtn.setOnAction(e -> importFromTxtFile());
 
+        Button dbBrowseBtn = new Button("Browse DB Files");
+        dbBrowseBtn.setStyle(toolbarBtnStyle(false));
+        dbBrowseBtn.setOnAction(e -> browseImportedFilesFromDatabase());
+
         Button exportBtn = new Button("Export");
         exportBtn.setStyle(toolbarBtnStyle(false));
         exportBtn.setOnAction(e -> exportToTxtFile());
 
-        HBox toolbar = new HBox(8, formatLabel, boldBtn, italicBtn, importBtn, exportBtn);
+        HBox toolbar = new HBox(8, formatLabel, boldBtn, italicBtn, importBtn, dbBrowseBtn, exportBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         toolbar.setPadding(new Insets(6, 16, 6, 16));
         toolbar.setStyle("-fx-background-color: #f8f9fa; -fx-border-color: #dee2e6; -fx-border-width: 0 0 1 0;");
@@ -765,6 +769,45 @@ public class EditorUI extends Application {
         }
     }
 
+    private void browseImportedFilesFromDatabase() {
+        if (controller == null || readOnlyMode) return;
+
+        List<Map<String, String>> exportedFiles = databaseManager.getExportedFiles();
+        if (exportedFiles.isEmpty()) {
+            setStatus("● No exported files found in DB", "#e67e22");
+            return;
+        }
+
+        ChoiceDialog<Map<String, String>> dialog = new ChoiceDialog<>(exportedFiles.get(0), exportedFiles);
+        dialog.setTitle("Browse Database Files");
+        dialog.setHeaderText("Import previously exported file");
+        dialog.setContentText("Choose a file:");
+        dialog.setResizable(true);
+        dialog.getDialogPane().setPrefWidth(560);
+        dialog.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(Map<String, String> item) {
+                if (item == null) return "";
+                return item.getOrDefault("name", "unnamed")
+                        + " | doc: " + item.getOrDefault("docId", "")
+                        + " | saved: " + item.getOrDefault("createdAt", "");
+            }
+
+            @Override
+            public Map<String, String> fromString(String string) {
+                return null;
+            }
+        });
+
+        Optional<Map<String, String>> selected = dialog.showAndWait();
+        if (selected.isPresent()) {
+            String content = selected.get().get("content");
+            applyImportedDocument(content == null ? "" : content);
+            refreshEditor(0);
+            setStatus("● Imported from DB: " + selected.get().getOrDefault("name", "file"), "#27ae60");
+        }
+    }
+
     private String serializeDocumentWithFormatting() {
         StringBuilder out = new StringBuilder();
         List<BlockNode> blocks = controller.getDocument().getVisibleBlocks();
@@ -785,6 +828,7 @@ public class EditorUI extends Application {
     }
 
     private void applyImportedDocument(String serialized) {
+        // Always clear the current working area before import.
         clearAllBlocks();
         currentBlockId = controller.createFirstBlock();
         caretPos = 0;
