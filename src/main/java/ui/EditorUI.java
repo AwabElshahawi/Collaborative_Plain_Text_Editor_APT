@@ -778,33 +778,30 @@ public class EditorUI extends Application {
             return;
         }
 
-        ChoiceDialog<Map<String, String>> dialog = new ChoiceDialog<>(exportedFiles.get(0), exportedFiles);
+        Map<String, Map<String, String>> displayToFile = new LinkedHashMap<>();
+        for (Map<String, String> file : exportedFiles) {
+            String display = file.getOrDefault("name", "unnamed")
+                    + " | doc: " + file.getOrDefault("docId", "")
+                    + " | saved: " + file.getOrDefault("createdAt", "");
+            displayToFile.put(display, file);
+        }
+
+        List<String> choices = new ArrayList<>(displayToFile.keySet());
+        ChoiceDialog<String> dialog = new ChoiceDialog<>(choices.get(0), choices);
         dialog.setTitle("Browse Database Files");
         dialog.setHeaderText("Import previously exported file");
         dialog.setContentText("Choose a file:");
         dialog.setResizable(true);
         dialog.getDialogPane().setPrefWidth(560);
-        dialog.setConverter(new javafx.util.StringConverter<>() {
-            @Override
-            public String toString(Map<String, String> item) {
-                if (item == null) return "";
-                return item.getOrDefault("name", "unnamed")
-                        + " | doc: " + item.getOrDefault("docId", "")
-                        + " | saved: " + item.getOrDefault("createdAt", "");
-            }
 
-            @Override
-            public Map<String, String> fromString(String string) {
-                return null;
-            }
-        });
-
-        Optional<Map<String, String>> selected = dialog.showAndWait();
+        Optional<String> selected = dialog.showAndWait();
         if (selected.isPresent()) {
-            String content = selected.get().get("content");
+            Map<String, String> selectedFile = displayToFile.get(selected.get());
+            if (selectedFile == null) return;
+            String content = selectedFile.get("content");
             applyImportedDocument(content == null ? "" : content);
             refreshEditor(0);
-            setStatus("● Imported from DB: " + selected.get().getOrDefault("name", "file"), "#27ae60");
+            setStatus("● Imported from DB: " + selectedFile.getOrDefault("name", "file"), "#27ae60");
         }
     }
 
