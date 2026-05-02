@@ -15,8 +15,12 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.*;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.*;
 
 public class EditorUI extends Application {
@@ -205,7 +209,15 @@ public class EditorUI extends Application {
         Label formatLabel = new Label("Format:");
         formatLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #555;");
 
-        HBox toolbar = new HBox(8, formatLabel, boldBtn, italicBtn);
+        Button importBtn = new Button("Import .txt");
+        importBtn.setStyle(toolbarBtnStyle(false));
+        importBtn.setOnAction(e -> importFromTxtFile());
+
+        Button exportBtn = new Button("Export .txt");
+        exportBtn.setStyle(toolbarBtnStyle(false));
+        exportBtn.setOnAction(e -> exportToTxtFile());
+
+        HBox toolbar = new HBox(8, formatLabel, boldBtn, italicBtn, importBtn, exportBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         toolbar.setPadding(new Insets(6, 16, 6, 16));
         toolbar.setStyle("-fx-background-color: #f8f9fa; -fx-border-color: #dee2e6; -fx-border-width: 0 0 1 0;");
@@ -701,6 +713,124 @@ public class EditorUI extends Application {
 
         refreshEditor(caretPos);
     }
+
+    private void exportToTxtFile() {
+        if (controller == null) return;
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Export Document");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Text Files", "*.txt"));
+        chooser.setInitialFileName("document.txt");
+
+        java.io.File file = chooser.showSaveDialog(primaryStage);
+        if (file == null) return;
+
+        String serialized = serializeDocumentWithFormatting();
+        try {
+            Files.writeString(file.toPath(), serialized, StandardCharsets.UTF_8);
+            setStatus("● Exported " + file.getName(), "#27ae60");
+        } catch (IOException ex) {
+            setStatus("● Export failed", "#e74c3c");
+        }
+    }
+
+    private void importFromTxtFile() {
+        if (controller == null || readOnlyMode) return;
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Import Document");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Text Files", "*.txt"));
+
+        java.io.File file = chooser.showOpenDialog(primaryStage);
+        if (file == null) return;
+
+        try {
+            String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+            applyImportedDocument(content);
+            refreshEditor(0);
+            setStatus("● Imported " + file.getName(), "#27ae60");
+        } catch (IOException ex) {
+            setStatus("● Import failed", "#e74c3c");
+        }
+    }
+
+    private String serializeDocumentWithFormatting() {
+        StringBuilder out = new StringBuilder();
+        List<BlockNode> blocks = controller.getDocument().getVisibleBlocks();
+        for (int b = 0; b < blocks.size(); b++) {
+            boolean bold = false;
+            boolean italic = false;
+            List<CharacterNode> chars = blocks.get(b).CharacterCRDT.getVisibleCharacters();
+            for (CharacterNode node : chars) {
+                if (node.bold != bold) { out.append(node.bold ? "<b>" : "</b>"); bold = node.bold; }
+                if (node.italic != italic) { out.append(node.italic ? "<i>" : "</i>"); italic = node.italic; }
+                out.append(escapeTextChar(node.value));
+            }
+            if (italic) out.append("</i>");
+            if (bold) out.append("</b>");
+            if (b < blocks.size() - 1) out.append('\n');
+        }
+        return out.toString();
+    }
+
+    private void applyImportedDocument(String serialized) {
+        clearAllBlocks();
+        currentBlockId = controller.createFirstBlock();
+        caretPos = 0;
+        boolean bold = false;
+        boolean italic = false;
+
+        for (int i = 0; i < serialized.length();) {
+            if (serialized.startsWith("<b>", i)) { bold = true; i += 3; continue; }
+            if (serialized.startsWith("</b>", i)) { bold = false; i += 4; continue; }
+            if (serialized.startsWith("<i>", i)) { italic = true; i += 3; continue; }
+            if (serialized.startsWith("</i>", i)) { italic = false; i += 4; continue; }
+            if (serialized.startsWith("&lt;", i)) { insertImportedChar('<', bold, italic); i += 4; continue; }
+            if (serialized.startsWith("&gt;", i)) { insertImportedChar('>', bold, italic); i += 4; continue; }
+            if (serialized.startsWith("&amp;", i)) { insertImportedChar('&', bold, italic); i += 5; continue; }
+
+            char c = serialized.charAt(i++);
+            if (c == '\r') continue;
+            if (c == '\n') {
+                String clock = String.valueOf(System.currentTimeMillis() + i);
+                BlockId newBlockId = new BlockId(userId, clock);
+                BlockOperation blockOp = controller.localInsertBlock(newBlockId, currentBlockId);
+                if (blockOp != null && clientConnection != null && clientConnection.isConnected()) {
+                    clientConnection.sendBlockOperation(blockOp, currentBlockId);
+                }
+                currentBlockId = newBlockId;
+                caretPos = 0;
+                continue;
+            }
+            insertImportedChar(c, bold, italic);
+        }
+    }
+
+    private void insertImportedChar(char c, boolean bold, boolean italic) {
+        Operation op = controller.localInsertChar(currentBlockId, caretPos, c, bold, italic);
+        if (op != null && clientConnection != null && clientConnection.isConnected()) {
+            clientConnection.sendOperation(op, currentBlockId);
+        }
+        caretPos++;
+    }
+
+    private void clearAllBlocks() {
+        List<BlockNode> blocks = new ArrayList<>(controller.getDocument().getVisibleBlocks());
+        for (BlockNode block : blocks) {
+            BlockOperation delete = controller.localDeleteBlock(block.id);
+            if (delete != null && clientConnection != null && clientConnection.isConnected()) {
+                clientConnection.sendBlockOperation(delete, block.id);
+            }
+        }
+    }
+
+    private String escapeTextChar(char c) {
+        if (c == '<') return "&lt;";
+        if (c == '>') return "&gt;";
+        if (c == '&') return "&amp;";
+        return String.valueOf(c);
+    }
+
     // ─────────────────────────────────────────────────────────────────
     //  REFRESH EDITOR
     // ─────────────────────────────────────────────────────────────────
