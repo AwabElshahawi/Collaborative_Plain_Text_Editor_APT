@@ -75,6 +75,25 @@ public class DatabaseManager {
         }
     }
 
+    public List<Map<String, String>> getExportedFiles() {
+        List<Map<String, String>> files = new ArrayList<>();
+        String sql = "SELECT id, doc_id, file_name, content, created_at FROM exported_files ORDER BY created_at DESC, id DESC";
+        try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                Map<String, String> file = new HashMap<>();
+                file.put("id", rs.getString("id"));
+                file.put("docId", rs.getString("doc_id"));
+                file.put("name", rs.getString("file_name"));
+                file.put("content", rs.getString("content"));
+                file.put("createdAt", rs.getString("created_at"));
+                files.add(file);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return files;
+    }
+
     public BlockCRDT loadDocument(String docId) {
         String sql = "SELECT crdt_state FROM documents WHERE doc_id = ?";
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
