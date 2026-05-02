@@ -59,13 +59,23 @@ public class DocumentServer extends TextWebSocketHandler {
                 JsonObject presence = data.getAsJsonObject();
                 if ("JOIN".equals(presence.get("action").getAsString())) {
                     String code = presence.has("sessionId") ? presence.get("sessionId").getAsString() : "";
+                    String joinType = presence.has("joinType") ? presence.get("joinType").getAsString() : "JOIN";
 
                     Map<String, String> dbInfo = dbManager.validateCode(code);
 
-                    if (dbInfo == null) {
+                    if (dbInfo == null && "CREATE".equalsIgnoreCase(joinType)) {
+                        String docId = code;
+                        dbManager.saveDocument(docId, "Untitled Document", new BlockCRDT());
+                        dbManager.createSharingCode(code, docId, "EDITOR");
+                        dbManager.createSharingCode(code + "-V", docId, "VIEWER");
+                        dbInfo = dbManager.validateCode(code);
+                    }
+
+                        if (dbInfo == null) {
                         sendReject(session, "Invalid sharing code. Please check and try again.");
                         return;
                     }
+
 
                     String docId = dbInfo.get("doc_id");
                     String role = dbInfo.get("role");
