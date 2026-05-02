@@ -22,6 +22,7 @@ public class ClientConnection extends TextWebSocketHandler {
     private final ui.EditorUI editorUI;
     private final String serverUrl;
     private final String sessionId;
+    private final String viewerSessionId;
     private final boolean readOnlyMode;
     private final boolean createFlow;
 
@@ -29,12 +30,14 @@ public class ClientConnection extends TextWebSocketHandler {
                             ui.EditorUI editorUI,
                             String serverUrl,
                             String sessionId,
+                            String viewerSessionId,
                             boolean readOnlyMode,
                             boolean createFlow) {
         this.controller = controller;
         this.editorUI   = editorUI;
         this.serverUrl  = serverUrl;
         this.sessionId = sessionId;
+        this.viewerSessionId = viewerSessionId;
         this.readOnlyMode = readOnlyMode;
         this.createFlow = createFlow;
     }
@@ -103,6 +106,8 @@ public class ClientConnection extends TextWebSocketHandler {
                     String reason = String.valueOf(event.get("reason"));
                     editorUI.onSessionJoinRejected(reason);
                 } else if ("ACCEPT".equals(action)) {
+                    String role = String.valueOf(event.get("role"));
+                    editorUI.setReadOnlyMode("VIEWER".equalsIgnoreCase(role));
                     editorUI.onSessionAccepted();
                 }
             }
@@ -170,6 +175,9 @@ public class ClientConnection extends TextWebSocketHandler {
             payload.put("sessionId", sessionId);
             payload.put("mode", readOnlyMode ? "VIEWER" : "EDITOR");
             payload.put("joinType", createFlow ? "CREATE" : "JOIN");
+            if (createFlow && viewerSessionId != null && !viewerSessionId.isBlank()) {
+                payload.put("viewerSessionId", viewerSessionId);
+            }
             MessageWrapper wrapper = new MessageWrapper("PRESENCE", payload, "", sessionId);
             session.sendMessage(new TextMessage(gson.toJson(wrapper)));
         } catch (IOException e) {
