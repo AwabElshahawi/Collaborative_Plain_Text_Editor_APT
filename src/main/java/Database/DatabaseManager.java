@@ -110,7 +110,6 @@ public class DatabaseManager {
         return docs;
     }
 
-
     public void createSharingCode(String code, String docId, String role) {
         String sql = "INSERT INTO sharing_codes (code, doc_id, role) VALUES (?, ?, ?)";
         try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -122,7 +121,6 @@ public class DatabaseManager {
             e.printStackTrace();
         }
     }
-
 
     public Map<String, String> validateCode(String code) {
         String sql = "SELECT doc_id, role FROM sharing_codes WHERE code = ?";
