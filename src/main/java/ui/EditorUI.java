@@ -211,11 +211,11 @@ public class EditorUI extends Application {
         Label formatLabel = new Label("Format:");
         formatLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #555;");
 
-        Button importBtn = new Button("Import .txt");
+        Button importBtn = new Button("Import");
         importBtn.setStyle(toolbarBtnStyle(false));
         importBtn.setOnAction(e -> importFromTxtFile());
 
-        Button exportBtn = new Button("Export .txt");
+        Button exportBtn = new Button("Export");
         exportBtn.setStyle(toolbarBtnStyle(false));
         exportBtn.setOnAction(e -> exportToTxtFile());
 
