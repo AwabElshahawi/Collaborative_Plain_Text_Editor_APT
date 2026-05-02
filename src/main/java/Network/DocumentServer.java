@@ -49,7 +49,6 @@ public class DocumentServer extends TextWebSocketHandler {
     }
 
     @Override
-    @SuppressWarnings("resource")
     public void handleTextMessage(@Nonnull WebSocketSession session, @Nonnull TextMessage message) {
         try {
             String msg = message.getPayload();
