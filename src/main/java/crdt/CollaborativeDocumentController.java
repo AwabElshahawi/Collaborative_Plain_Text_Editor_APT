@@ -221,6 +221,12 @@ public class CollaborativeDocumentController {
         // Shared deterministic first block so every client can apply remote ops
         // to the same initial block before any additional block operations arrive.
         BlockId blockId = new BlockId(0, "00:01");
+        BlockNode existing = document.findBlock(blockId);
+        if (existing != null) {
+            existing.deleted = false;
+            return blockId;
+        }
+
         BlockOperation op = BlockOperation.insert(blockId, document.getRootId());
         document.apply(op);
         return blockId;
