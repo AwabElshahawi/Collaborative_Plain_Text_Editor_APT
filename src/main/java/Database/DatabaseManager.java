@@ -38,6 +38,14 @@ public class DatabaseManager {
                     "role TEXT NOT NULL, " + // 'EDITOR' or 'VIEWER'
                     "FOREIGN KEY(doc_id) REFERENCES documents(doc_id)" +
                     ")");
+
+            stmt.execute("CREATE TABLE IF NOT EXISTS exported_files (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "doc_id TEXT NOT NULL, " +
+                    "file_name TEXT NOT NULL, " +
+                    "content TEXT NOT NULL, " +
+                    "created_at DATETIME DEFAULT CURRENT_TIMESTAMP" +
+                    ")");
         }
     }
 
@@ -53,6 +61,19 @@ public class DatabaseManager {
         }
     }
 
+
+
+    public void saveExportedFile(String docId, String fileName, String content) {
+        String sql = "INSERT INTO exported_files (doc_id, file_name, content) VALUES (?, ?, ?)";
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, docId);
+            pstmt.setString(2, fileName);
+            pstmt.setString(3, content);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 
     public BlockCRDT loadDocument(String docId) {
         String sql = "SELECT crdt_state FROM documents WHERE doc_id = ?";

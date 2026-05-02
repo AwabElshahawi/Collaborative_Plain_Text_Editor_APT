@@ -1,6 +1,7 @@
 
 package ui;
 
+import Database.DatabaseManager;
 import crdt.*;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -72,6 +73,7 @@ public class EditorUI extends Application {
 
     // Server Connection
     private Network.ClientConnection clientConnection;
+    private final DatabaseManager databaseManager = new DatabaseManager();
 
     // ─────────────────────────────────────────────────────────────────
     //  ENTRY POINT
@@ -728,7 +730,8 @@ public class EditorUI extends Application {
         String serialized = serializeDocumentWithFormatting();
         try {
             Files.writeString(file.toPath(), serialized, StandardCharsets.UTF_8);
-            setStatus("● Exported " + file.getName(), "#27ae60");
+            databaseManager.saveExportedFile(sessionId, file.getName(), serialized);
+            setStatus("● Exported " + file.getName() + " to disk + DB", "#27ae60");
         } catch (IOException ex) {
             setStatus("● Export failed", "#e74c3c");
         }
@@ -777,6 +780,7 @@ public class EditorUI extends Application {
         clearAllBlocks();
         currentBlockId = controller.createFirstBlock();
         caretPos = 0;
+        clearSelection();
         boolean bold = false;
         boolean italic = false;
 
