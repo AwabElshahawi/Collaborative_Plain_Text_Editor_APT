@@ -52,6 +52,7 @@ public class DocumentServer extends TextWebSocketHandler {
     public void handleTextMessage(@Nonnull WebSocketSession session, @Nonnull TextMessage message) {
         try {
             String msg = message.getPayload();
+            System.out.println("Received message from " + session.getId() + ": " + msg);
             JsonObject wrapper = JsonParser.parseString(msg).getAsJsonObject();
             String kind = wrapper.get("kind").getAsString();
             JsonElement data = wrapper.get("data");
