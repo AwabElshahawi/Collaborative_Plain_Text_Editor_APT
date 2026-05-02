@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import crdt.BlockCRDT;
 import Database.DatabaseManager;
+import jakarta.annotation.Nonnull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
@@ -24,13 +25,13 @@ public class DocumentServer extends TextWebSocketHandler {
     private static final Map<String, JsonObject> sessionDetails = new ConcurrentHashMap<>();
 
     @Override
-    public void afterConnectionEstablished(WebSocketSession session) {
+    public void afterConnectionEstablished(@Nonnull WebSocketSession session) {
         sessions.put(session.getId(), session);
         System.out.println("Connection established: " + session.getId());
     }
 
     @Override
-    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+    public void afterConnectionClosed(WebSocketSession session, @Nonnull CloseStatus status) {
         JsonObject details = sessionDetails.remove(session.getId());
         if (details != null) {
             String username = details.get("username").getAsString();
@@ -43,12 +44,18 @@ public class DocumentServer extends TextWebSocketHandler {
             broadcastToDocument(gson.toJson(new MessageWrapper("PRESENCE", leavePayload, "", "")),
                     session.getId(), docId);
         }
-        sessions.remove(session.getId());
+        try {
+            sessions.remove(session.getId());
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("Error Closing: " + session.getId());
+        }
         System.out.println("Connection closed: " + session.getId());
     }
 
     @Override
-    public void handleTextMessage(WebSocketSession session, TextMessage message) {
+    public void handleTextMessage(@Nonnull WebSocketSession session, @Nonnull TextMessage message) {
         try {
             String msg = message.getPayload();
             JsonObject wrapper = JsonParser.parseString(msg).getAsJsonObject();
@@ -64,15 +71,14 @@ public class DocumentServer extends TextWebSocketHandler {
                     Map<String, String> dbInfo = dbManager.validateCode(code);
 
                     if (dbInfo == null && "CREATE".equalsIgnoreCase(joinType)) {
-                        String docId = code;
-                        dbManager.saveDocument(docId, "Untitled Document", new BlockCRDT());
-                        dbManager.createSharingCode(code, docId, "EDITOR");
-                        dbManager.createSharingCode(code + "-V", docId, "VIEWER");
+                        dbManager.saveDocument(code, "Untitled Document", new BlockCRDT());
+                        dbManager.createSharingCode(code, code, "EDITOR");
+                        dbManager.createSharingCode(code + "-V", code, "VIEWER");
                         dbInfo = dbManager.validateCode(code);
                     }
 
                         if (dbInfo == null) {
-                        sendReject(session, "Invalid sharing code. Please check and try again.");
+                        sendReject(session);
                         return;
                     }
 
@@ -143,10 +149,10 @@ public class DocumentServer extends TextWebSocketHandler {
         }
     }
 
-    private void sendReject(WebSocketSession session, String reason) throws Exception {
+    private void sendReject(WebSocketSession session) throws Exception {
         JsonObject reject = new JsonObject();
         reject.addProperty("action", "REJECT");
-        reject.addProperty("reason", reason);
+        reject.addProperty("reason", "Invalid sharing code. Please check and try again.");
         session.sendMessage(new TextMessage(gson.toJson(new MessageWrapper("SESSION", reject, "", ""))));
     }
 }
