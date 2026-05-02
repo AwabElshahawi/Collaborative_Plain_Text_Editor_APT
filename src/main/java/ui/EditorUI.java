@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class EditorUI extends Application {
 
@@ -127,7 +128,7 @@ public class EditorUI extends Application {
         createBtn.setOnAction(e -> {
             String uname = userField.getText().trim();
             if (uname.isEmpty()) { errorLabel.setText("Please enter your name."); return; }
-            initializeSession(uname, UUID.randomUUID().toString().substring(0, 8), false, true);
+            initializeSession(uname, generateSessionId(), false, true);
         });
         VBox root = new VBox(10, new Label("Create Session"), new Label("Username"), userField, errorLabel, createBtn);
         root.setPadding(new Insets(30));
@@ -150,9 +151,8 @@ public class EditorUI extends Application {
             String uname = userField.getText().trim();
             String sid = sessionField.getText().trim();
             if (uname.isEmpty() || sid.isEmpty()) { errorLabel.setText("Please fill in both fields."); return; }
-            boolean readOnly = sid.endsWith("-V");
             lastJoinAttemptedId = sid;
-            initializeSession(uname, sid.replace("-E", "").replace("-V", ""), readOnly, false);
+            initializeSession(uname, sid, false, false);
         });
         VBox root = new VBox(10, new Label("Join Session"), new Label("Username"), userField, new Label("Session ID"), sessionField, errorLabel, joinBtn);
         root.setPadding(new Insets(30));
@@ -163,8 +163,8 @@ public class EditorUI extends Application {
     private void initializeSession(String uname, String baseSessionId, boolean readOnly, boolean isCreateFlow) {
         username = uname;
         sessionId = baseSessionId;
-        editorSessionId = baseSessionId + "-E";
-        viewerSessionId = baseSessionId + "-V";
+        editorSessionId = baseSessionId;
+        viewerSessionId = isCreateFlow ? generateDistinctSessionId(editorSessionId) : "";
         readOnlyMode = readOnly;
         userId = Math.abs(uname.hashCode()) % 10000;
         controller = new CollaborativeDocumentController(userId);
@@ -173,7 +173,7 @@ public class EditorUI extends Application {
         activeUsers.put(username, userColor);
 
         pendingJoinFlow = !isCreateFlow;
-        clientConnection = new Network.ClientConnection(controller,this,"ws://localhost:8080/ws", sessionId, readOnlyMode, isCreateFlow);
+        clientConnection = new Network.ClientConnection(controller,this,"ws://localhost:8080/ws", sessionId, viewerSessionId, readOnlyMode, isCreateFlow);
         clientConnection.connect();
         if (isCreateFlow) showEditorScreen();
     }
@@ -187,12 +187,20 @@ public class EditorUI extends Application {
 
         // ── Top bar ──────────────────────────────────────────────────
         Label sessionInfo = new Label("Editor Session: " + editorSessionId + " | Viewer Session: " + viewerSessionId + (readOnlyMode ? " (View-only mode)" : ""));
+        Button copyEditorBtn = new Button("Copy Editor ID");
+        copyEditorBtn.setStyle(toolbarBtnStyle(false));
+        copyEditorBtn.setOnAction(e -> copyToClipboard(editorSessionId));
+
+        Button copyViewerBtn = new Button("Copy Viewer ID");
+        copyViewerBtn.setStyle(toolbarBtnStyle(false));
+        copyViewerBtn.setOnAction(e -> copyToClipboard(viewerSessionId));
+        copyViewerBtn.setDisable(viewerSessionId == null || viewerSessionId.isBlank());
         statusLabel = new Label("● Connected");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox topBar = new HBox(12, sessionInfo, spacer, statusLabel);
+        HBox topBar = new HBox(12, sessionInfo, copyEditorBtn, copyViewerBtn, spacer, statusLabel);
         topBar.setAlignment(Pos.CENTER_LEFT);
         topBar.setPadding(new Insets(8, 16, 8, 16));
         topBar.setStyle("-fx-background-color: #2c3e50;");
@@ -295,7 +303,7 @@ public class EditorUI extends Application {
         );
 
         // ── Status bar ───────────────────────────────────────────────
-        Label statusBar = new Label("Connected as: " + username + "  |  Editor ID: " + editorSessionId + "  |  Viewer ID: " + viewerSessionId);
+        Label statusBar = new Label("Connected as: " + username + "  |  Editor ID: " + editorSessionId + (viewerSessionId.isBlank() ? "" : "  |  Viewer ID: " + viewerSessionId));
         statusBar.setStyle("-fx-font-size: 11px; -fx-text-fill: #888; -fx-padding: 4 12 4 12;");
         HBox bottomBar = new HBox(statusBar);
         bottomBar.setStyle("-fx-background-color: #f1f1f1; -fx-border-color: #ddd; -fx-border-width: 1 0 0 0;");
@@ -1058,6 +1066,7 @@ public class EditorUI extends Application {
     public int     getUserId()         { return userId; }
     public BlockId getCurrentBlockId() { return currentBlockId; }
     public CollaborativeDocumentController getController() { return controller; }
+    public void setReadOnlyMode(boolean readOnlyMode) { this.readOnlyMode = readOnlyMode; }
 
     // ─────────────────────────────────────────────────────────────────
     //  HELPERS
@@ -1106,6 +1115,31 @@ public class EditorUI extends Application {
                 "-fx-background-radius: 4; -fx-cursor: hand;";
     }
 
+
+    private void copyToClipboard(String value) {
+        if (value == null || value.isBlank()) return;
+        ClipboardContent content = new ClipboardContent();
+        content.putString(value);
+        Clipboard.getSystemClipboard().setContent(content);
+    }
+
+    private String generateSessionId() {
+        final String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        StringBuilder sb = new StringBuilder(6);
+        for (int i = 0; i < 6; i++) {
+            int idx = ThreadLocalRandom.current().nextInt(chars.length());
+            sb.append(chars.charAt(idx));
+        }
+        return sb.toString();
+    }
+
+    private String generateDistinctSessionId(String existingId) {
+        String id;
+        do {
+            id = generateSessionId();
+        } while (id.equals(existingId));
+        return id;
+    }
     private String randomColor(int seed) {
         String[] colors = {
                 "#e74c3c", "#3498db", "#2ecc71", "#9b59b6",

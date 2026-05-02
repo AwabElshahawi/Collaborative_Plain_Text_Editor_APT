@@ -65,9 +65,12 @@ public class DocumentServer extends TextWebSocketHandler {
                     Map<String, String> dbInfo = dbManager.validateCode(code);
 
                     if (dbInfo == null && "CREATE".equalsIgnoreCase(joinType)) {
+                        String viewerCode = presence.has("viewerSessionId") ? presence.get("viewerSessionId").getAsString() : "";
                         dbManager.saveDocument(code, "Untitled Document", new BlockCRDT());
                         dbManager.createSharingCode(code, code, "EDITOR");
-                        dbManager.createSharingCode(code + "-V", code, "VIEWER");
+                        if (!viewerCode.isBlank() && !viewerCode.equals(code)) {
+                            dbManager.createSharingCode(viewerCode, code, "VIEWER");
+                        }
                         dbInfo = dbManager.validateCode(code);
                     }
 
@@ -86,6 +89,7 @@ public class DocumentServer extends TextWebSocketHandler {
 
                     JsonObject accept = new JsonObject();
                     accept.addProperty("action", "ACCEPT");
+                    accept.addProperty("role", role);
                     session.sendMessage(new TextMessage(gson.toJson(new MessageWrapper("SESSION", accept, "", code))));
 
                     broadcastToDocument(msg, session.getId(), docId);
