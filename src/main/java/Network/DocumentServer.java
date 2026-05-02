@@ -44,17 +44,12 @@ public class DocumentServer extends TextWebSocketHandler {
             broadcastToDocument(gson.toJson(new MessageWrapper("PRESENCE", leavePayload, "", "")),
                     session.getId(), docId);
         }
-        try {
-            sessions.remove(session.getId());
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-            System.out.println("Error Closing: " + session.getId());
-        }
+        sessions.remove(session.getId());
         System.out.println("Connection closed: " + session.getId());
     }
 
     @Override
+    @SuppressWarnings("resource")
     public void handleTextMessage(@Nonnull WebSocketSession session, @Nonnull TextMessage message) {
         try {
             String msg = message.getPayload();
