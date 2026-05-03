@@ -11,35 +11,55 @@ public class CollaborativeDocumentController {
     private final int localUserId;
     private boolean applyingRemote;
 
-    // One UndoRedoManager per block
-    private final Map<BlockId, UndoRedoManager> undoRedoManagers = new HashMap<>();
+
+    private final UndoRedoManager globalUndoManager; // to undo/redo for other users
 
     public CollaborativeDocumentController(int localUserId) {
         this.document = new BlockCRDT();
         this.localUserId = localUserId;
         this.localClock = new LocalClock(localUserId);
-        this.applyingRemote = false;
+        this.globalUndoManager = new UndoRedoManager(this.document); // Initialize
     }
 
     // ─────────────────────────────────────────────────────────────────
     //  UNDO / REDO
     // ─────────────────────────────────────────────────────────────────
 
-    private UndoRedoManager getUndoManager(BlockId blockId) {
-        return undoRedoManagers.computeIfAbsent(blockId, id ->
-                new UndoRedoManager(document.findBlock(id).CharacterCRDT));
+    public UndoRedoManager getUndoManager() {
+        return globalUndoManager;
     }
 
-    /** Undo last character operation in the given block. Returns inverse op to broadcast. */
-    public Operation undo(BlockId blockId) {
-        return getUndoManager(blockId).undo();
+
+    public Object undo() {
+        Object inverse = globalUndoManager.undo();
+
+        if (inverse instanceof Operation) {
+            Operation op = (Operation) inverse;
+            BlockNode block = document.findBlock(BlockId.fromString(op.blockIdHint));
+            if (block != null) {
+                block.CharacterCRDT.apply(op);
+            }
+        } else if (inverse instanceof BlockOperation) {
+            document.apply((BlockOperation) inverse);
+        }
+        return inverse;
     }
 
-    /** Redo last undone character operation in the given block. Returns op to broadcast. */
-    public Operation redo(BlockId blockId) {
-        return getUndoManager(blockId).redo();
-    }
 
+    public Object redo() {
+        Object toRedo = globalUndoManager.redo();
+
+        if (toRedo instanceof Operation) {
+            Operation op = (Operation) toRedo;
+            BlockNode block = document.findBlock(BlockId.fromString(op.blockIdHint));
+            if (block != null) {
+                block.CharacterCRDT.apply(op);
+            }
+        } else if (toRedo instanceof BlockOperation) {
+            document.apply((BlockOperation) toRedo);
+        }
+        return toRedo;
+    }
     // ─────────────────────────────────────────────────────────────────
     //  GETTERS
     // ─────────────────────────────────────────────────────────────────
@@ -120,13 +140,16 @@ public class CollaborativeDocumentController {
         block.CharacterCRDT.apply(op);
 
         // Record for undo
-        getUndoManager(blockId).record(op);
+
+        op.blockIdHint = blockId.toString();
+        globalUndoManager.record(op);
 
         return op;
     }
 
     public Operation localInsertChar(BlockId blockId, int visibleIndex, char value) {
         return localInsertChar(blockId, visibleIndex, value, false, false);
+
     }
 
     public Operation localDeleteChar(BlockId blockId, int visibleIndex) {
@@ -141,8 +164,8 @@ public class CollaborativeDocumentController {
         block.CharacterCRDT.apply(op);
 
         // Record for undo
-        getUndoManager(blockId).record(op);
-
+        op.blockIdHint = blockId.toString();
+        globalUndoManager.record(op);
         return op;
     }
 
@@ -157,8 +180,8 @@ public class CollaborativeDocumentController {
         block.CharacterCRDT.apply(op);
 
         // Record for undo
-        getUndoManager(blockId).record(op);
-
+        op.blockIdHint = blockId.toString();
+        globalUndoManager.record(op);
         return op;
     }
 
@@ -173,8 +196,9 @@ public class CollaborativeDocumentController {
 
         applyingRemote = true;
         block.CharacterCRDT.apply(op);
+        op.blockIdHint = blockId.toString();
+        globalUndoManager.record(op);
         applyingRemote = false;
-        // Remote ops are NOT recorded in undo stack
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -184,30 +208,40 @@ public class CollaborativeDocumentController {
     public BlockOperation localInsertBlock(BlockId newBlockId, BlockId parentId) {
         BlockOperation op = BlockOperation.insert(newBlockId, parentId);
         document.apply(op);
+        globalUndoManager.record(op);
+
         return op;
     }
 
     public BlockOperation localDeleteBlock(BlockId blockId) {
         BlockOperation op = BlockOperation.delete(blockId);
         document.apply(op);
+        globalUndoManager.record(op);
+
         return op;
     }
 
     public BlockOperation localSplitBlock(BlockId blockId, int splitIndex, String newBlockClock) {
         BlockOperation op = BlockOperation.split(blockId, splitIndex, newBlockClock);
         document.apply(op);
+        globalUndoManager.record(op);
+
         return op;
     }
 
     public BlockOperation localMergeBlocks(BlockId firstBlockId, BlockId secondBlockId) {
         BlockOperation op = BlockOperation.merge(firstBlockId, secondBlockId);
         document.apply(op);
+        globalUndoManager.record(op);
+
         return op;
     }
 
     public BlockOperation localPasteBlock(BlockId parentId, String text, String newBlockClock) {
         BlockOperation op = BlockOperation.paste(parentId, text, newBlockClock, localUserId);
         document.apply(op);
+        globalUndoManager.record(op);
+
         return op;
     }
 
@@ -215,11 +249,11 @@ public class CollaborativeDocumentController {
         applyingRemote = true;
         document.apply(op);
         applyingRemote = false;
+        globalUndoManager.record(op);
+
     }
 
     public BlockId createFirstBlock() {
-        // Shared deterministic first block so every client can apply remote ops
-        // to the same initial block before any additional block operations arrive.
         BlockId blockId = new BlockId(0, "00:01");
         BlockNode existing = document.findBlock(blockId);
         if (existing != null) {

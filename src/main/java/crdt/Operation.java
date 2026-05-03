@@ -15,6 +15,7 @@ public class Operation {
     public boolean     italic;
     boolean prevBold;
     boolean prevItalic;
+    public String blockIdHint; // which block a character belongs to
 
     public Operation(Type type, CharacterId charId, CharacterId parentId,
                       char value, boolean bold, boolean italic) {

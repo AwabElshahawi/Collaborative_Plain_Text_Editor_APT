@@ -49,9 +49,6 @@ public class EditorUI extends Application {
     private int caretPos = 0;
 
     // ── Selection state ───────────────────────────────────────────────
-    // Selection is always within a single block (cross-block selection not supported yet).
-    // selectionAnchorPos / selectionAnchorBlockId = where the selection started
-    // selectionStart < selectionEnd = the visual range (character indices, exclusive end)
     private int     selectionAnchorPos     = -1;
     private BlockId selectionAnchorBlockId = null;
     private int     selectionStart         = -1;   // -1 means no selection
@@ -210,16 +207,25 @@ public class EditorUI extends Application {
         primaryStage.setTitle("Editor — " + sessionId + " | " + username);
 
         // ── Top bar ──────────────────────────────────────────────────
-        Label sessionInfo = new Label("Editor Session: " + editorSessionId + " | Viewer Session: " + viewerSessionId + (readOnlyMode ? " (View-only mode)" : ""));
+        String headerText = readOnlyMode
+                ? "Collaborative Editor (Viewer Mode)"
+                : "Editor Session: " + editorSessionId + " | Viewer Session: " + viewerSessionId;
+
+        Label sessionInfo = new Label(headerText);
+        sessionInfo.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: white;");
+
         Button copyEditorBtn = new Button("Copy Editor ID");
         copyEditorBtn.setStyle(toolbarBtnStyle(false));
         copyEditorBtn.setOnAction(e -> copyToClipboard(editorSessionId));
+        copyEditorBtn.setVisible(!readOnlyMode); // Only editors see this
 
         Button copyViewerBtn = new Button("Copy Viewer ID");
         copyViewerBtn.setStyle(toolbarBtnStyle(false));
         copyViewerBtn.setOnAction(e -> copyToClipboard(viewerSessionId));
-        copyViewerBtn.setDisable(viewerSessionId == null || viewerSessionId.isBlank());
+        copyViewerBtn.setVisible(!readOnlyMode); // Only editors see this
+
         statusLabel = new Label("● Connected");
+        statusLabel.setStyle("-fx-text-fill: #2ecc71; -fx-font-size: 12px;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -228,8 +234,6 @@ public class EditorUI extends Application {
         topBar.setAlignment(Pos.CENTER_LEFT);
         topBar.setPadding(new Insets(8, 16, 8, 16));
         topBar.setStyle("-fx-background-color: #2c3e50;");
-        sessionInfo.setStyle("-fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: white;");
-        statusLabel.setStyle("-fx-text-fill: #2ecc71; -fx-font-size: 12px;");
 
         // ── Toolbar ──────────────────────────────────────────────────
         boldBtn = new Button("B");
@@ -255,7 +259,36 @@ public class EditorUI extends Application {
         browseDbBtn.setStyle(toolbarBtnStyle(false));
         browseDbBtn.setOnAction(e -> browseImportedFilesFromDatabase());
 
-        HBox toolbar = new HBox(8, formatLabel, boldBtn, italicBtn, importBtn, exportBtn, browseDbBtn);
+        Button renameBtn = new Button("Rename");
+        renameBtn.setStyle(toolbarBtnStyle(false));
+        renameBtn.setDisable(readOnlyMode); // Viewers can't rename files
+        renameBtn.setOnAction(e -> {
+            TextInputDialog dialog = new TextInputDialog(sessionId);
+            dialog.setTitle("Rename Document");
+            dialog.setHeaderText("Enter a new name for this document:");
+            dialog.showAndWait().ifPresent(newName -> {
+                databaseManager.renameDocument(sessionId, newName);
+                primaryStage.setTitle("Editor — " + newName + " | " + username);
+                setStatus("● Renamed to: " + newName, "#3498db");
+            });
+        });
+
+        Button deleteBtn = new Button("Delete");
+        deleteBtn.setStyle(toolbarBtnStyle(false) + "-fx-text-fill: #e74c3c;");
+        deleteBtn.setDisable(readOnlyMode); // Viewers can't delete files
+        deleteBtn.setOnAction(e -> {
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "Delete this file permanently?", ButtonType.YES, ButtonType.NO);
+            alert.showAndWait().ifPresent(type -> {
+                if (type == ButtonType.YES) {
+                    databaseManager.deleteDocument(sessionId);
+                    if (clientConnection != null) clientConnection.disconnect();
+                    showEntryChoiceScreen();
+                }
+            });
+        });
+
+        HBox toolbar = new HBox(8, formatLabel, boldBtn, italicBtn, importBtn, exportBtn, browseDbBtn, renameBtn, deleteBtn);
+
         toolbar.setAlignment(Pos.CENTER_LEFT);
         toolbar.setPadding(new Insets(6, 16, 6, 16));
         toolbar.setStyle("-fx-background-color: #f8f9fa; -fx-border-color: #dee2e6; -fx-border-width: 0 0 1 0;");
@@ -393,21 +426,46 @@ public class EditorUI extends Application {
             event.consume();
             return;
         }
-        if (ctrl && code == KeyCode.Z) {
-            Operation inverse = controller.undo(currentBlockId);
-            if (inverse != null && clientConnection != null && clientConnection.isConnected()) {
-                clientConnection.sendOperation(inverse, currentBlockId);
-            }
-            refreshEditor(caretPos);
-            event.consume();
-            return;
-        }
 
-        if (ctrl && code == KeyCode.Y) {
-            Operation redoOp = controller.redo(currentBlockId);
-            if (redoOp != null && clientConnection != null && clientConnection.isConnected()) {
-                clientConnection.sendOperation(redoOp, currentBlockId);
+
+    //  UNDO (Ctrl+Z)
+        if (ctrl && code == KeyCode.Z) {
+                Object result = controller.undo();
+
+                if (result instanceof Operation) {
+                    Operation op = (Operation) result;
+
+                    if (op.type == Operation.Type.INSERT) {
+                        caretPos++;
+                    }
+                    else if (op.type == Operation.Type.DELETE) {
+                        caretPos = Math.max(0, caretPos - 1);
+                    }
+                }
+
+                refreshEditor(caretPos);
+                event.consume();
+                return;
             }
+
+
+    // ─────────────────────────────────────────────────────────────────
+    //  REDO (Ctrl+Y)
+    // ─────────────────────────────────────────────────────────────────
+        if (ctrl && code == KeyCode.Y) {
+            Object result = controller.redo();
+
+            if (result instanceof Operation) {
+                Operation op = (Operation) result;
+
+                if (op.type == Operation.Type.INSERT) {
+                    caretPos++;
+                }
+                else if (op.type == Operation.Type.DELETE) {
+                    caretPos = Math.max(0, caretPos - 1);
+                }
+            }
+
             refreshEditor(caretPos);
             event.consume();
             return;
