@@ -85,6 +85,7 @@ public class EditorUI extends Application {
     private boolean suppressListener = false;
     private boolean applyingRemote   = false;
     private boolean pendingJoinFlow  = false;
+    private boolean suppressCursorAnnouncement = false;
     private String lastJoinAttemptedId = "";
 
     // Server Connection
@@ -963,7 +964,9 @@ public class EditorUI extends Application {
         }
 
         suppressListener = false;
-        announceCursorPosition();
+        if (!suppressCursorAnnouncement) {
+            announceCursorPosition();
+        }
     }
 
 
@@ -989,6 +992,16 @@ public class EditorUI extends Application {
         HBox box = new HBox(2, line, label);
         box.setAlignment(Pos.BOTTOM_LEFT);
         return box;
+    }
+
+    private void refreshEditorWithoutBroadcast() {
+        boolean prev = suppressCursorAnnouncement;
+        suppressCursorAnnouncement = true;
+        try {
+            refreshEditor(caretPos);
+        } finally {
+            suppressCursorAnnouncement = prev;
+        }
     }
 
     private void announceCursorPosition() {
@@ -1105,7 +1118,7 @@ public class EditorUI extends Application {
             activeUsers.remove(leftUsername);
             remoteCursors.remove(leftUsername);
             refreshUsersList();
-            refreshEditor();
+            refreshEditorWithoutBroadcast();
             setStatus("● " + leftUsername + " left", "#e67e22");
         });
     }
@@ -1138,7 +1151,7 @@ public class EditorUI extends Application {
         }
         Platform.runLater(() -> {
             remoteCursors.put(uname, new RemoteCursor(uname, color, parsed, remoteCaretPos));
-            refreshEditor();
+            refreshEditorWithoutBroadcast();
         });
     }
 
