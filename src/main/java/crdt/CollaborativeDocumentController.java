@@ -188,8 +188,6 @@ public class CollaborativeDocumentController {
     public void applyRemoteCharOperation(BlockId blockId, Operation op) {
         BlockNode block = document.findBlock(blockId);
         if (block == null || block.deleted) {
-            // Be resilient to out-of-order delivery / older clients:
-            // ensure the target block exists before applying remote char ops.
             document.apply(BlockOperation.insert(blockId, document.getRootId()));
             block = requireBlock(blockId);
         }

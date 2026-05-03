@@ -2,7 +2,7 @@ package crdt;
 import java.util.*;
 
 public class UndoRedoManager {
-    // to store either a Char Op or a Block Op in one stack
+    // to store either a Char Op or a Block Op
     public static class HistoryItem {
         public Operation charOp;
         public BlockOperation blockOp;

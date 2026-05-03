@@ -1017,6 +1017,17 @@ public class EditorUI extends Application {
                         && i >= selectionStart && i < selectionEnd;
 
                 Text t = new Text(String.valueOf(node.value));
+                final int charIndex = i;
+                final BlockId bId = block.id;
+                t.setCursor(javafx.scene.Cursor.TEXT);
+                t.setOnMouseClicked(e -> {
+                    this.currentBlockId = bId;
+                    this.caretPos = charIndex;
+                    clearSelection();
+                    textFlow.requestFocus();
+                    refreshEditor(this.caretPos);
+                    e.consume();
+                });
                 t.setFont(Font.font(
                         "Consolas",
                         node.bold   ? FontWeight.BOLD   : FontWeight.NORMAL,
@@ -1025,11 +1036,9 @@ public class EditorUI extends Application {
                 ));
 
                 if (selected) {
-                    // Highlighted selection: blue background via fill trick
                     t.setFill(Color.WHITE);
                     t.setStyle("-fx-background-color: #3498db;");
-                    // JavaFX TextFlow doesn't support background on Text directly,
-                    // so we use a StackPane wrapper to simulate the highlight.
+
                     javafx.scene.layout.StackPane highlight = new javafx.scene.layout.StackPane(t);
                     highlight.setStyle("-fx-background-color: #3498db; -fx-background-radius: 2;");
                     textFlow.getChildren().add(highlight);
@@ -1043,6 +1052,16 @@ public class EditorUI extends Application {
             if (isCurrentBlock && caretPos >= visible.size()) {
                 textFlow.getChildren().add(makeCaret());
             }
+            Text endZone = new Text(" ");
+            final BlockId bId = block.id;
+            final int endPos = visible.size();
+            endZone.setOnMouseClicked(e -> {
+                this.currentBlockId = bId;
+                this.caretPos = endPos;
+                refreshEditor(this.caretPos);
+                e.consume();
+            });
+            textFlow.getChildren().add(endZone);
             renderRemoteCursorTags(block.id, visible.size());
 
             if (b < blocks.size() - 1) {
