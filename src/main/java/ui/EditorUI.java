@@ -251,7 +251,11 @@ public class EditorUI extends Application {
         exportBtn.setStyle(toolbarBtnStyle(false));
         exportBtn.setOnAction(e -> exportToTxtFile());
 
-        HBox toolbar = new HBox(8, formatLabel, boldBtn, italicBtn, importBtn, exportBtn);
+        Button browseDbBtn = new Button("Browse DB");
+        browseDbBtn.setStyle(toolbarBtnStyle(false));
+        browseDbBtn.setOnAction(e -> browseImportedFilesFromDatabase());
+
+        HBox toolbar = new HBox(8, formatLabel, boldBtn, italicBtn, importBtn, exportBtn, browseDbBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         toolbar.setPadding(new Insets(6, 16, 6, 16));
         toolbar.setStyle("-fx-background-color: #f8f9fa; -fx-border-color: #dee2e6; -fx-border-width: 0 0 1 0;");
