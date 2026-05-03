@@ -3,6 +3,8 @@ package ui;
 
 import Database.DatabaseManager;
 import crdt.*;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -18,6 +20,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -91,6 +94,8 @@ public class EditorUI extends Application {
     // Server Connection
     private Network.ClientConnection clientConnection;
     private final DatabaseManager databaseManager = new DatabaseManager();
+    private Timeline autoSaveTimeline;
+    private static final int AUTO_SAVE_SECONDS = 10;
 
     // ─────────────────────────────────────────────────────────────────
     //  ENTRY POINT
@@ -109,6 +114,8 @@ public class EditorUI extends Application {
 
     @Override
     public void stop() {
+        persistDocumentToDatabase();
+        stopAutoSave();
         if (clientConnection != null) clientConnection.disconnect();
     }
 
@@ -185,6 +192,7 @@ public class EditorUI extends Application {
         userId = Math.abs(uname.hashCode()) % 10000;
         controller = new CollaborativeDocumentController(userId);
         currentBlockId = controller.createFirstBlock();
+        persistDocumentToDatabase();
         userColor = randomColor(userId);
         activeUsers.put(username, userColor);
 
@@ -239,15 +247,11 @@ public class EditorUI extends Application {
         importBtn.setStyle(toolbarBtnStyle(false));
         importBtn.setOnAction(e -> importFromTxtFile());
 
-        Button dbBrowseBtn = new Button("Browse DB Files");
-        dbBrowseBtn.setStyle(toolbarBtnStyle(false));
-        dbBrowseBtn.setOnAction(e -> browseImportedFilesFromDatabase());
-
         Button exportBtn = new Button("Export");
         exportBtn.setStyle(toolbarBtnStyle(false));
         exportBtn.setOnAction(e -> exportToTxtFile());
 
-        HBox toolbar = new HBox(8, formatLabel, boldBtn, italicBtn, importBtn, dbBrowseBtn, exportBtn);
+        HBox toolbar = new HBox(8, formatLabel, boldBtn, italicBtn, importBtn, exportBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         toolbar.setPadding(new Insets(6, 16, 6, 16));
         toolbar.setStyle("-fx-background-color: #f8f9fa; -fx-border-color: #dee2e6; -fx-border-width: 0 0 1 0;");
@@ -335,6 +339,8 @@ public class EditorUI extends Application {
         primaryStage.setScene(scene);
         primaryStage.setMinWidth(600);
         primaryStage.setMinHeight(400);
+
+        startAutoSave();
 
         Platform.runLater(() -> {
             textFlow.requestFocus();
@@ -744,6 +750,26 @@ public class EditorUI extends Application {
         refreshEditor(caretPos);
     }
 
+
+    private void startAutoSave() {
+        stopAutoSave();
+        autoSaveTimeline = new Timeline(new KeyFrame(Duration.seconds(AUTO_SAVE_SECONDS), e -> persistDocumentToDatabase()));
+        autoSaveTimeline.setCycleCount(Timeline.INDEFINITE);
+        autoSaveTimeline.play();
+    }
+
+    private void stopAutoSave() {
+        if (autoSaveTimeline != null) {
+            autoSaveTimeline.stop();
+            autoSaveTimeline = null;
+        }
+    }
+
+    private void persistDocumentToDatabase() {
+        if (controller == null || sessionId == null || sessionId.isBlank()) return;
+        databaseManager.saveDocument(sessionId, "Session " + sessionId, controller.getDocument());
+    }
+
     private void exportToTxtFile() {
         if (controller == null) return;
 
@@ -758,8 +784,7 @@ public class EditorUI extends Application {
         String serialized = serializeDocumentWithFormatting();
         try {
             Files.writeString(file.toPath(), serialized, StandardCharsets.UTF_8);
-            databaseManager.saveExportedFile(sessionId, file.getName(), serialized);
-            setStatus("● Exported " + file.getName() + " to disk + DB", "#27ae60");
+            setStatus("● Exported " + file.getName() + " locally", "#27ae60");
         } catch (IOException ex) {
             setStatus("● Export failed", "#e74c3c");
         }
