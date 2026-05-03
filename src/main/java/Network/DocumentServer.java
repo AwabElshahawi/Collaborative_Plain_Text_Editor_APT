@@ -111,6 +111,11 @@ public class DocumentServer extends TextWebSocketHandler {
                 return;
             }
 
+            if ("CURSOR".equals(kind)) {
+                broadcastToDocument(msg, session.getId(), userDocId);
+                return;
+            }
+
             broadcastToDocument(msg, session.getId(), userDocId);
 
         } catch (Exception e) {

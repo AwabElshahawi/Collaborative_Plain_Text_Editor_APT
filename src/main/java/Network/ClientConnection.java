@@ -99,6 +99,15 @@ public class ClientConnection extends TextWebSocketHandler {
                     editorUI.onUserLeft(username);
                 }
             }
+            else if ("CURSOR".equals(wrapper.kind)) {
+                Map<?, ?> event = gson.fromJson(gson.toJson(wrapper.data), Map.class);
+                String username = String.valueOf(event.get("username"));
+                String color = String.valueOf(event.get("color"));
+                String blockId = String.valueOf(event.get("blockId"));
+                Double caretPosValue = (Double) event.get("caretPos");
+                int caretPos = caretPosValue == null ? 0 : caretPosValue.intValue();
+                editorUI.onRemoteCursorUpdated(username, color, blockId, caretPos);
+            }
             else if ("SESSION".equals(wrapper.kind)) {
                 Map<?, ?> event = gson.fromJson(gson.toJson(wrapper.data), Map.class);
                 String action = String.valueOf(event.get("action"));
@@ -159,6 +168,24 @@ public class ClientConnection extends TextWebSocketHandler {
             }
         } else {
             System.out.println("Cannot send — not connected");
+        }
+    }
+
+
+
+    public void sendCursor(String blockId, int caretPos) {
+        if (session == null || !session.isOpen()) return;
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("username", editorUI.getUsername());
+            payload.put("color", editorUI.getUserColor());
+            payload.put("blockId", blockId);
+            payload.put("caretPos", caretPos);
+            payload.put("sessionId", sessionId);
+            MessageWrapper wrapper = new MessageWrapper("CURSOR", payload, blockId, sessionId);
+            session.sendMessage(new TextMessage(gson.toJson(wrapper)));
+        } catch (IOException e) {
+            System.err.println("Failed to send cursor update: " + e.getMessage());
         }
     }
 

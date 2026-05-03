@@ -57,6 +57,21 @@ public class EditorUI extends Application {
 
     // Active users: username -> color
     private final Map<String, String> activeUsers = new LinkedHashMap<>();
+    private final Map<String, RemoteCursor> remoteCursors = new HashMap<>();
+
+    private static class RemoteCursor {
+        private final String username;
+        private final String color;
+        private final BlockId blockId;
+        private final int caretPos;
+
+        private RemoteCursor(String username, String color, BlockId blockId, int caretPos) {
+            this.username = username;
+            this.color = color;
+            this.blockId = blockId;
+            this.caretPos = Math.max(caretPos, 0);
+        }
+    }
 
     // ── UI nodes ─────────────────────────────────────────────────────
     private Stage primaryStage;
@@ -907,6 +922,7 @@ public class EditorUI extends Application {
                 if (isCurrentBlock && i == caretPos) {
                     textFlow.getChildren().add(makeCaret());
                 }
+                renderRemoteCursorTags(block.id, i);
 
                 CharacterNode node     = visible.get(i);
                 boolean       selected = isSelBlock && hasSelection()
@@ -939,6 +955,7 @@ public class EditorUI extends Application {
             if (isCurrentBlock && caretPos >= visible.size()) {
                 textFlow.getChildren().add(makeCaret());
             }
+            renderRemoteCursorTags(block.id, visible.size());
 
             if (b < blocks.size() - 1) {
                 textFlow.getChildren().add(new Text("\n"));
@@ -946,6 +963,37 @@ public class EditorUI extends Application {
         }
 
         suppressListener = false;
+        announceCursorPosition();
+    }
+
+
+    private void renderRemoteCursorTags(BlockId blockId, int position) {
+        List<RemoteCursor> markers = new ArrayList<>();
+        for (RemoteCursor cursor : remoteCursors.values()) {
+            if (cursor.blockId != null && cursor.blockId.equals(blockId) && cursor.caretPos == position) {
+                markers.add(cursor);
+            }
+        }
+        markers.sort(Comparator.comparing(c -> c.username.toLowerCase(Locale.ROOT)));
+        for (RemoteCursor cursor : markers) {
+            textFlow.getChildren().add(makeRemoteCursorTag(cursor));
+        }
+    }
+
+    private HBox makeRemoteCursorTag(RemoteCursor cursor) {
+        javafx.scene.shape.Rectangle line = new javafx.scene.shape.Rectangle(2, 18);
+        line.setFill(Color.web(cursor.color));
+        Text label = new Text(cursor.username + " ");
+        label.setFill(Color.web(cursor.color));
+        label.setFont(Font.font("Consolas", FontWeight.BOLD, 12));
+        HBox box = new HBox(2, line, label);
+        box.setAlignment(Pos.BOTTOM_LEFT);
+        return box;
+    }
+
+    private void announceCursorPosition() {
+        if (clientConnection == null || !clientConnection.isConnected() || currentBlockId == null) return;
+        clientConnection.sendCursor(currentBlockId.toString(), caretPos);
     }
 
     private void refreshEditor() {
@@ -1055,14 +1103,13 @@ public class EditorUI extends Application {
     public void onUserLeft(String leftUsername) {
         Platform.runLater(() -> {
             activeUsers.remove(leftUsername);
+            remoteCursors.remove(leftUsername);
             refreshUsersList();
+            refreshEditor();
             setStatus("● " + leftUsername + " left", "#e67e22");
         });
     }
 
-    public void onRemoteCursorUpdate(String cursorUsername, String color, int position) {
-        Platform.runLater(this::refreshUsersList);
-    }
 
     public void onDisconnected() {
         Platform.runLater(() -> setStatus("● Disconnected", "#e74c3c"));
@@ -1078,6 +1125,20 @@ public class EditorUI extends Application {
                 pendingJoinFlow = false;
                 showEditorScreen();
             }
+        });
+    }
+
+    public void onRemoteCursorUpdated(String uname, String color, String blockIdValue, int remoteCaretPos) {
+        if (uname == null || uname.isBlank() || uname.equals(username)) return;
+        BlockId parsed;
+        try {
+            parsed = BlockId.fromString(blockIdValue);
+        } catch (Exception e) {
+            return;
+        }
+        Platform.runLater(() -> {
+            remoteCursors.put(uname, new RemoteCursor(uname, color, parsed, remoteCaretPos));
+            refreshEditor();
         });
     }
 
