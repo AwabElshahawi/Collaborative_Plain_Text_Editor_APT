@@ -882,36 +882,43 @@ public class EditorUI extends Application {
     private void browseImportedFilesFromDatabase() {
         if (controller == null || readOnlyMode) return;
 
-        List<Map<String, String>> exportedFiles = databaseManager.getExportedFiles();
-        if (exportedFiles.isEmpty()) {
-            setStatus("● No exported files found in DB", "#e67e22");
+        List<Map<String, String>> documents = databaseManager.getAllDocuments();
+        if (documents.isEmpty()) {
+            setStatus("● No saved documents found in DB", "#e67e22");
             return;
         }
 
-        Map<String, Map<String, String>> displayToFile = new LinkedHashMap<>();
-        for (Map<String, String> file : exportedFiles) {
-            String display = file.getOrDefault("name", "unnamed")
-                    + " | doc: " + file.getOrDefault("docId", "")
-                    + " | saved: " + file.getOrDefault("createdAt", "");
-            displayToFile.put(display, file);
+        Map<String, String> displayToDocId = new LinkedHashMap<>();
+        for (Map<String, String> doc : documents) {
+            String docId = doc.getOrDefault("id", "");
+            String name = doc.getOrDefault("name", "Untitled");
+            String display = name + " | doc: " + docId;
+            displayToDocId.put(display, docId);
         }
 
-        List<String> choices = new ArrayList<>(displayToFile.keySet());
+        List<String> choices = new ArrayList<>(displayToDocId.keySet());
         ChoiceDialog<String> dialog = new ChoiceDialog<>(choices.get(0), choices);
         dialog.setTitle("Browse Database Files");
-        dialog.setHeaderText("Import previously exported file");
-        dialog.setContentText("Choose a file:");
+        dialog.setHeaderText("Open auto-saved document from DB");
+        dialog.setContentText("Choose a document:");
         dialog.setResizable(true);
         dialog.getDialogPane().setPrefWidth(560);
 
         Optional<String> selected = dialog.showAndWait();
         if (selected.isPresent()) {
-            Map<String, String> selectedFile = displayToFile.get(selected.get());
-            if (selectedFile == null) return;
-            String content = selectedFile.get("content");
-            applyImportedDocument(content == null ? "" : content);
+            String selectedDocId = displayToDocId.get(selected.get());
+            if (selectedDocId == null || selectedDocId.isBlank()) return;
+
+            BlockCRDT loadedDocument = databaseManager.loadDocument(selectedDocId);
+            if (loadedDocument == null) {
+                setStatus("● Failed to load document from DB", "#e74c3c");
+                return;
+            }
+
+            controller.getDocument().loadFrom(loadedDocument);
+            ensureCurrentBlockAvailable();
             refreshEditor(0);
-            setStatus("● Imported from DB: " + selectedFile.getOrDefault("name", "file"), "#27ae60");
+            setStatus("● Loaded from DB: " + selected.get(), "#27ae60");
         }
     }
 
