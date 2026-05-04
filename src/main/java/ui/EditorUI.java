@@ -918,6 +918,9 @@ public class EditorUI extends Application {
             controller.getDocument().loadFrom(loadedDocument);
             ensureCurrentBlockAvailable();
             refreshEditor(0);
+            if (clientConnection != null && clientConnection.isConnected() && !readOnlyMode) {
+                clientConnection.sendSnapshot(controller.getDocument());
+            }
             setStatus("● Loaded from DB: " + selected.get(), "#27ae60");
         }
     }
@@ -1288,6 +1291,16 @@ public class EditorUI extends Application {
         Platform.runLater(() -> {
             remoteCursors.put(uname, new RemoteCursor(uname, color, parsed, remoteCaretPos));
             refreshEditorWithoutBroadcast();
+        });
+    }
+
+    public void onRemoteDocumentSnapshotReceived(BlockCRDT snapshot) {
+        if (snapshot == null) return;
+        Platform.runLater(() -> {
+            controller.getDocument().loadFrom(snapshot);
+            ensureCurrentBlockAvailable();
+            refreshEditorWithoutBroadcast();
+            setStatus("● Document updated from DB selection", "#3498db");
         });
     }
 
