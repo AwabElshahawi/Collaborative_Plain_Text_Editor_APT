@@ -255,4 +255,30 @@ public class BlockCRDT {
         }
     }
 
+    public void loadFrom(BlockCRDT other) {
+        if (other == null) return;
+
+        blockMap.clear();
+        root.children.clear();
+        root.deleted = false;
+
+        Map<BlockId, BlockNode> clonedById = new HashMap<>();
+        cloneChildren(other.root, root, clonedById);
+        blockMap.put(root.id, root);
+        blockMap.putAll(clonedById);
+    }
+
+    private void cloneChildren(BlockNode sourceParent,
+                               BlockNode targetParent,
+                               Map<BlockId, BlockNode> clonedById) {
+        for (BlockNode sourceChild : sourceParent.children) {
+            BlockNode cloned = new BlockNode(sourceChild.id, sourceChild.parentId);
+            cloned.deleted = sourceChild.deleted;
+            cloned.CharacterCRDT.loadFrom(sourceChild.CharacterCRDT);
+            targetParent.children.add(cloned);
+            clonedById.put(cloned.id, cloned);
+            cloneChildren(sourceChild, cloned, clonedById);
+        }
+    }
+
 }

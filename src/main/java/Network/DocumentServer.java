@@ -110,6 +110,10 @@ public class DocumentServer extends TextWebSocketHandler {
                 System.out.println("BLOCKED: Viewer " + details.get("username") + " tried to edit.");
                 return;
             }
+            if ("SNAPSHOT".equals(kind) && "VIEWER".equals(userRole)) {
+                System.out.println("BLOCKED: Viewer " + details.get("username") + " tried to send snapshot.");
+                return;
+            }
 
             if ("CURSOR".equals(kind)) {
                 broadcastToDocument(msg, session.getId(), userDocId);
