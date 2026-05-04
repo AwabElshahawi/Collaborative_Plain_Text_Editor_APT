@@ -918,9 +918,6 @@ public class EditorUI extends Application {
             controller.getDocument().loadFrom(loadedDocument);
             ensureCurrentBlockAvailable();
             refreshEditor(0);
-            if (clientConnection != null && clientConnection.isConnected() && !readOnlyMode) {
-                clientConnection.sendSnapshot(controller.getDocument());
-            }
             setStatus("● Loaded from DB: " + selected.get(), "#27ae60");
         }
     }
