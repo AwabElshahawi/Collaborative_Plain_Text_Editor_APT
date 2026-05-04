@@ -1263,7 +1263,7 @@ public class EditorUI extends Application {
         BlockCRDT loadedDocument = databaseManager.loadDocument(docId);
         if (loadedDocument == null) return;
 
-        applyImportedDocument(loadedDocument.getDocumentText());
+        controller.getDocument().loadFrom(loadedDocument);
         ensureCurrentBlockAvailable();
     }
 
