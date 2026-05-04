@@ -151,4 +151,35 @@ public class CharacterCRDT {
 
         return maxCounter;
     }
+
+    public void loadFrom(CharacterCRDT other) {
+        if (other == null) return;
+
+        charMap.clear();
+        root.children.clear();
+        root.deleted = false;
+
+        Map<CharacterId, CharacterNode> clonedById = new HashMap<>();
+        cloneChildren(other.root, root, clonedById);
+        charMap.put(root.id, root);
+        charMap.putAll(clonedById);
+    }
+
+    private void cloneChildren(CharacterNode sourceParent,
+                               CharacterNode targetParent,
+                               Map<CharacterId, CharacterNode> clonedById) {
+        for (CharacterNode sourceChild : sourceParent.children) {
+            CharacterNode cloned = new CharacterNode(
+                    sourceChild.id,
+                    sourceChild.parentId,
+                    sourceChild.value,
+                    sourceChild.bold,
+                    sourceChild.italic
+            );
+            cloned.deleted = sourceChild.deleted;
+            targetParent.children.add(cloned);
+            clonedById.put(cloned.id, cloned);
+            cloneChildren(sourceChild, cloned, clonedById);
+        }
+    }
 }
