@@ -189,7 +189,11 @@ public class EditorUI extends Application {
         userId = Math.abs(uname.hashCode()) % 10000;
         controller = new CollaborativeDocumentController(userId);
         currentBlockId = controller.createFirstBlock();
-        persistDocumentToDatabase();
+        if (isCreateFlow) {
+            persistDocumentToDatabase();
+        } else {
+            preloadDocumentForSession();
+        }
         userColor = randomColor(userId);
         activeUsers.put(username, userColor);
 
@@ -846,6 +850,9 @@ public class EditorUI extends Application {
         String serialized = serializeDocumentWithFormatting();
         try {
             Files.writeString(file.toPath(), serialized, StandardCharsets.UTF_8);
+            if (sessionId != null && !sessionId.isBlank()) {
+                databaseManager.saveExportedFile(sessionId, file.getName(), serialized);
+            }
             setStatus("● Exported " + file.getName() + " locally", "#27ae60");
         } catch (IOException ex) {
             setStatus("● Export failed", "#e74c3c");
@@ -875,36 +882,43 @@ public class EditorUI extends Application {
     private void browseImportedFilesFromDatabase() {
         if (controller == null || readOnlyMode) return;
 
-        List<Map<String, String>> exportedFiles = databaseManager.getExportedFiles();
-        if (exportedFiles.isEmpty()) {
-            setStatus("● No exported files found in DB", "#e67e22");
+        List<Map<String, String>> documents = databaseManager.getAllDocuments();
+        if (documents.isEmpty()) {
+            setStatus("● No saved documents found in DB", "#e67e22");
             return;
         }
 
-        Map<String, Map<String, String>> displayToFile = new LinkedHashMap<>();
-        for (Map<String, String> file : exportedFiles) {
-            String display = file.getOrDefault("name", "unnamed")
-                    + " | doc: " + file.getOrDefault("docId", "")
-                    + " | saved: " + file.getOrDefault("createdAt", "");
-            displayToFile.put(display, file);
+        Map<String, String> displayToDocId = new LinkedHashMap<>();
+        for (Map<String, String> doc : documents) {
+            String docId = doc.getOrDefault("id", "");
+            String name = doc.getOrDefault("name", "Untitled");
+            String display = name + " | doc: " + docId;
+            displayToDocId.put(display, docId);
         }
 
-        List<String> choices = new ArrayList<>(displayToFile.keySet());
+        List<String> choices = new ArrayList<>(displayToDocId.keySet());
         ChoiceDialog<String> dialog = new ChoiceDialog<>(choices.get(0), choices);
         dialog.setTitle("Browse Database Files");
-        dialog.setHeaderText("Import previously exported file");
-        dialog.setContentText("Choose a file:");
+        dialog.setHeaderText("Open auto-saved document from DB");
+        dialog.setContentText("Choose a document:");
         dialog.setResizable(true);
         dialog.getDialogPane().setPrefWidth(560);
 
         Optional<String> selected = dialog.showAndWait();
         if (selected.isPresent()) {
-            Map<String, String> selectedFile = displayToFile.get(selected.get());
-            if (selectedFile == null) return;
-            String content = selectedFile.get("content");
-            applyImportedDocument(content == null ? "" : content);
+            String selectedDocId = displayToDocId.get(selected.get());
+            if (selectedDocId == null || selectedDocId.isBlank()) return;
+
+            BlockCRDT loadedDocument = databaseManager.loadDocument(selectedDocId);
+            if (loadedDocument == null) {
+                setStatus("● Failed to load document from DB", "#e74c3c");
+                return;
+            }
+
+            controller.getDocument().loadFrom(loadedDocument);
+            ensureCurrentBlockAvailable();
             refreshEditor(0);
-            setStatus("● Imported from DB: " + selectedFile.getOrDefault("name", "file"), "#27ae60");
+            setStatus("● Loaded from DB: " + selected.get(), "#27ae60");
         }
     }
 
@@ -1247,6 +1261,22 @@ public class EditorUI extends Application {
         });
     }
 
+    private void preloadDocumentForSession() {
+        if (controller == null || sessionId == null || sessionId.isBlank()) return;
+
+        Map<String, String> sessionInfo = databaseManager.validateCode(sessionId);
+        if (sessionInfo == null) return;
+
+        String docId = sessionInfo.get("doc_id");
+        if (docId == null || docId.isBlank()) return;
+
+        BlockCRDT loadedDocument = databaseManager.loadDocument(docId);
+        if (loadedDocument == null) return;
+
+        controller.getDocument().loadFrom(loadedDocument);
+        ensureCurrentBlockAvailable();
+    }
+
     public void onRemoteCursorUpdated(String uname, String color, String blockIdValue, int remoteCaretPos) {
         if (uname == null || uname.isBlank() || uname.equals(username)) return;
         BlockId parsed;
@@ -1258,6 +1288,16 @@ public class EditorUI extends Application {
         Platform.runLater(() -> {
             remoteCursors.put(uname, new RemoteCursor(uname, color, parsed, remoteCaretPos));
             refreshEditorWithoutBroadcast();
+        });
+    }
+
+    public void onRemoteDocumentSnapshotReceived(BlockCRDT snapshot) {
+        if (snapshot == null) return;
+        Platform.runLater(() -> {
+            controller.getDocument().loadFrom(snapshot);
+            ensureCurrentBlockAvailable();
+            refreshEditorWithoutBroadcast();
+            setStatus("● Document updated from DB selection", "#3498db");
         });
     }
 

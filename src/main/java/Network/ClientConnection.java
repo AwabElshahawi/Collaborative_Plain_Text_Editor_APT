@@ -120,6 +120,12 @@ public class ClientConnection extends TextWebSocketHandler {
                     editorUI.onSessionAccepted();
                 }
             }
+            else if ("SNAPSHOT".equals(wrapper.kind)) {
+                BlockCRDT snapshot = gson.fromJson(gson.toJson(wrapper.data), BlockCRDT.class);
+                if (snapshot != null) {
+                    editorUI.onRemoteDocumentSnapshotReceived(snapshot);
+                }
+            }
 
         } catch (Exception e) {
             System.err.println("Error parsing message: " + e.getMessage());
@@ -209,6 +215,16 @@ public class ClientConnection extends TextWebSocketHandler {
             session.sendMessage(new TextMessage(gson.toJson(wrapper)));
         } catch (IOException e) {
             System.err.println("Failed to send presence update: " + e.getMessage());
+        }
+    }
+
+    public void sendSnapshot(BlockCRDT snapshot) {
+        if (session == null || !session.isOpen() || snapshot == null) return;
+        try {
+            MessageWrapper wrapper = new MessageWrapper("SNAPSHOT", snapshot, "", sessionId);
+            session.sendMessage(new TextMessage(gson.toJson(wrapper)));
+        } catch (IOException e) {
+            System.err.println("Failed to send snapshot: " + e.getMessage());
         }
     }
 }
