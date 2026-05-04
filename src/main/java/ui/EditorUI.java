@@ -850,6 +850,9 @@ public class EditorUI extends Application {
         String serialized = serializeDocumentWithFormatting();
         try {
             Files.writeString(file.toPath(), serialized, StandardCharsets.UTF_8);
+            if (sessionId != null && !sessionId.isBlank()) {
+                databaseManager.saveExportedFile(sessionId, file.getName(), serialized);
+            }
             setStatus("● Exported " + file.getName() + " locally", "#27ae60");
         } catch (IOException ex) {
             setStatus("● Export failed", "#e74c3c");
