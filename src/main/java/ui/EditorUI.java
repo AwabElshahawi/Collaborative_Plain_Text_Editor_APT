@@ -285,6 +285,9 @@ public class EditorUI extends Application {
             alert.showAndWait().ifPresent(type -> {
                 if (type == ButtonType.YES) {
                     databaseManager.deleteDocument(sessionId);
+                    if (clientConnection != null && clientConnection.isConnected()) {
+                        clientConnection.sendDeleteSession();
+                    }
                     if (clientConnection != null) clientConnection.disconnect();
                     showEntryChoiceScreen();
                 }
@@ -1273,6 +1276,20 @@ public class EditorUI extends Application {
                 pendingJoinFlow = false;
                 showEditorScreen();
             }
+        });
+    }
+
+    public void onSessionDeleted() {
+        Platform.runLater(() -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Session closed");
+            alert.setHeaderText("This session was deleted");
+            alert.setContentText("The document session was deleted by an editor. Both clients have been disconnected.");
+            alert.showAndWait();
+            if (clientConnection != null) clientConnection.disconnect();
+            activeUsers.clear();
+            remoteCursors.clear();
+            showEntryChoiceScreen();
         });
     }
 
