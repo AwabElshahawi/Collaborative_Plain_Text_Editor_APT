@@ -189,7 +189,11 @@ public class EditorUI extends Application {
         userId = Math.abs(uname.hashCode()) % 10000;
         controller = new CollaborativeDocumentController(userId);
         currentBlockId = controller.createFirstBlock();
-        persistDocumentToDatabase();
+        if (isCreateFlow) {
+            persistDocumentToDatabase();
+        } else {
+            preloadDocumentForSession();
+        }
         userColor = randomColor(userId);
         activeUsers.put(username, userColor);
 
@@ -1245,6 +1249,22 @@ public class EditorUI extends Application {
                 showEditorScreen();
             }
         });
+    }
+
+    private void preloadDocumentForSession() {
+        if (controller == null || sessionId == null || sessionId.isBlank()) return;
+
+        Map<String, String> sessionInfo = databaseManager.validateCode(sessionId);
+        if (sessionInfo == null) return;
+
+        String docId = sessionInfo.get("doc_id");
+        if (docId == null || docId.isBlank()) return;
+
+        BlockCRDT loadedDocument = databaseManager.loadDocument(docId);
+        if (loadedDocument == null) return;
+
+        controller.getDocument().loadFrom(loadedDocument);
+        ensureCurrentBlockAvailable();
     }
 
     public void onRemoteCursorUpdated(String uname, String color, String blockIdValue, int remoteCaretPos) {
