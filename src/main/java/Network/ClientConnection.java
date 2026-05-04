@@ -118,6 +118,8 @@ public class ClientConnection extends TextWebSocketHandler {
                     String role = String.valueOf(event.get("role"));
                     editorUI.setReadOnlyMode("VIEWER".equalsIgnoreCase(role));
                     editorUI.onSessionAccepted();
+                } else if ("DELETED".equals(action)) {
+                    editorUI.onSessionDeleted();
                 }
             }
             else if ("SNAPSHOT".equals(wrapper.kind)) {
@@ -225,6 +227,19 @@ public class ClientConnection extends TextWebSocketHandler {
             session.sendMessage(new TextMessage(gson.toJson(wrapper)));
         } catch (IOException e) {
             System.err.println("Failed to send snapshot: " + e.getMessage());
+        }
+    }
+
+    public void sendDeleteSession() {
+        if (session == null || !session.isOpen()) return;
+        try {
+            Map<String, String> payload = new HashMap<>();
+            payload.put("action", "DELETE");
+            payload.put("sessionId", sessionId);
+            MessageWrapper wrapper = new MessageWrapper("SESSION", payload, "", sessionId);
+            session.sendMessage(new TextMessage(gson.toJson(wrapper)));
+        } catch (IOException e) {
+            System.err.println("Failed to send session delete: " + e.getMessage());
         }
     }
 }

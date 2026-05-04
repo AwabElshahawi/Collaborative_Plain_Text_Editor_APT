@@ -106,6 +106,15 @@ public class DocumentServer extends TextWebSocketHandler {
             String userRole = details.get("role").getAsString();
             String userDocId = details.get("docId").getAsString();
 
+            if ("SESSION".equals(kind)) {
+                JsonObject sessionEvent = data.getAsJsonObject();
+                String action = sessionEvent.has("action") ? sessionEvent.get("action").getAsString() : "";
+                if ("DELETE".equals(action) && "EDITOR".equals(userRole)) {
+                    closeDocumentSessions(userDocId);
+                    return;
+                }
+            }
+
             if (("CHAR".equals(kind) || "BLOCK".equals(kind)) && "VIEWER".equals(userRole)) {
                 System.out.println("BLOCKED: Viewer " + details.get("username") + " tried to edit.");
                 return;
@@ -162,5 +171,28 @@ public class DocumentServer extends TextWebSocketHandler {
         reject.addProperty("action", "REJECT");
         reject.addProperty("reason", "Invalid sharing code. Please check and try again.");
         session.sendMessage(new TextMessage(gson.toJson(new MessageWrapper("SESSION", reject, "", ""))));
+    }
+
+    private void closeDocumentSessions(String docId) {
+        List<WebSocketSession> toClose = new ArrayList<>();
+        sessions.forEach((id, activeSession) -> {
+            JsonObject details = sessionDetails.get(id);
+            if (details != null && docId.equals(details.get("docId").getAsString()) && activeSession.isOpen()) {
+                toClose.add(activeSession);
+            }
+        });
+
+        JsonObject deleted = new JsonObject();
+        deleted.addProperty("action", "DELETED");
+        String payload = gson.toJson(new MessageWrapper("SESSION", deleted, "", ""));
+
+        for (WebSocketSession activeSession : toClose) {
+            try {
+                activeSession.sendMessage(new TextMessage(payload));
+            } catch (Exception ignored) {}
+            try {
+                activeSession.close(CloseStatus.NORMAL);
+            } catch (Exception ignored) {}
+        }
     }
 }
