@@ -191,11 +191,9 @@ public class CollaborativeDocumentController {
             document.apply(BlockOperation.insert(blockId, document.getRootId()));
             block = requireBlock(blockId);
         }
-
         applyingRemote = true;
         block.CharacterCRDT.apply(op);
         op.blockIdHint = blockId.toString();
-        globalUndoManager.record(op);
         applyingRemote = false;
     }
 
@@ -247,7 +245,6 @@ public class CollaborativeDocumentController {
         applyingRemote = true;
         document.apply(op);
         applyingRemote = false;
-        globalUndoManager.record(op);
 
     }
 

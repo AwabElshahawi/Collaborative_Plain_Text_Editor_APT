@@ -63,7 +63,7 @@ public class DocumentServer extends TextWebSocketHandler {
                     String code = presence.has("sessionId") ? presence.get("sessionId").getAsString() : "";
                     String joinType = presence.has("joinType") ? presence.get("joinType").getAsString() : "JOIN";
 
-                    Map<String, String> dbInfo = dbManager.validateCode(code);
+                    Map<String, String> dbInfo =    dbManager.validateCode(code);
 
                     if (dbInfo == null && "CREATE".equalsIgnoreCase(joinType)) {
                         String viewerCode = presence.has("viewerSessionId") ? presence.get("viewerSessionId").getAsString() : "";

@@ -434,23 +434,29 @@ public class EditorUI extends Application {
 
     //  UNDO (Ctrl+Z)
         if (ctrl && code == KeyCode.Z) {
-                Object result = controller.undo();
+            Object result = controller.undo();
 
-                if (result instanceof Operation) {
-                    Operation op = (Operation) result;
-
-                    if (op.type == Operation.Type.INSERT) {
-                        caretPos++;
-                    }
-                    else if (op.type == Operation.Type.DELETE) {
-                        caretPos = Math.max(0, caretPos - 1);
-                    }
+            if (result instanceof Operation) {
+                Operation op = (Operation) result;
+                if (clientConnection != null && clientConnection.isConnected()) {
+                    BlockId blockId = BlockId.fromString(op.blockIdHint);
+                    clientConnection.sendOperation(op, blockId);
                 }
+                if (op.type == Operation.Type.INSERT) caretPos++;
+                else if (op.type == Operation.Type.DELETE) caretPos = Math.max(0, caretPos - 1);
 
-                refreshEditor(caretPos);
-                event.consume();
-                return;
+            } else if (result instanceof BlockOperation) {
+                BlockOperation op = (BlockOperation) result;
+                if (clientConnection != null && clientConnection.isConnected()) {
+                    clientConnection.sendBlockOperation(op, op.blockId);
+                }
             }
+
+
+            refreshEditor(caretPos);
+            event.consume();
+            return;
+        }
 
 
     // ─────────────────────────────────────────────────────────────────
@@ -461,12 +467,17 @@ public class EditorUI extends Application {
 
             if (result instanceof Operation) {
                 Operation op = (Operation) result;
-
-                if (op.type == Operation.Type.INSERT) {
-                    caretPos++;
+                if (clientConnection != null && clientConnection.isConnected()) {
+                    BlockId blockId = BlockId.fromString(op.blockIdHint);
+                    clientConnection.sendOperation(op, blockId);
                 }
-                else if (op.type == Operation.Type.DELETE) {
-                    caretPos = Math.max(0, caretPos - 1);
+                if (op.type == Operation.Type.INSERT) caretPos++;
+                else if (op.type == Operation.Type.DELETE) caretPos = Math.max(0, caretPos - 1);
+
+            } else if (result instanceof BlockOperation) {
+                BlockOperation op = (BlockOperation) result;
+                if (clientConnection != null && clientConnection.isConnected()) {
+                    clientConnection.sendBlockOperation(op, op.blockId);
                 }
             }
 
