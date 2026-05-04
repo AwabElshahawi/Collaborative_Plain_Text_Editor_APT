@@ -1036,7 +1036,11 @@ public class EditorUI extends Application {
                 t.setCursor(javafx.scene.Cursor.TEXT);
                 t.setOnMouseClicked(e -> {
                     this.currentBlockId = bId;
-                    this.caretPos = charIndex;
+                    if (e.getX() > (t.getLayoutBounds().getWidth() / 2)) {
+                        this.caretPos = charIndex + 1;
+                    } else {
+                        this.caretPos = charIndex;
+                    }
                     clearSelection();
                     textFlow.requestFocus();
                     refreshEditor(this.caretPos);
